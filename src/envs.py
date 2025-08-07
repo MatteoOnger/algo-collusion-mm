@@ -17,7 +17,7 @@ class GM2Env(ptz.AECEnv):
     and Milgrom (1985), which studies how bid and ask quotes are set in the 
     presence of asymmetric information.
 
-    In this simplified GM2 version, traders are not allowed to pass; their only 
+    In this version, traders are not allowed to pass; their only 
     possible actions are to BUY or SELL. Makers set bid and ask prices, and a 
     randomly chosen trader makes a transaction decision based on the prices and 
     their private signal (the true value).
