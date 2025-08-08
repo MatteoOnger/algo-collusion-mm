@@ -43,6 +43,19 @@ class Agent(ABC):
 
     
     @abstractmethod
+    def update(slef, reward: float) -> None:
+        """
+        Update the internal state of the agent based on the received reward.
+
+        Parameters
+        ----------
+        reward : float
+            The reward assigned to the agent for the most recent action.
+        """
+        pass
+
+
+    @abstractmethod
     def reset(self) -> None:
         """
         Reset the internal state of the agent, if any.
