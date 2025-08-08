@@ -43,7 +43,7 @@ class Agent(ABC):
 
     
     @abstractmethod
-    def update(slef, reward: float) -> None:
+    def update(self, reward: float) -> None:
         """
         Update the internal state of the agent based on the received reward.
 
