@@ -11,7 +11,7 @@ from typing import Callable, Dict, Literal, Tuple
 
 class GM2Env(ptz.AECEnv):
     """
-    Glosten-Milgrom 2 (GM2) environment for simulating a limit order market.
+    Glosten-Milgrom 2 (GM2) environment for simulating a single asset market.
 
     This environment is based on the microstructure model introduced by Glosten 
     and Milgrom (1985), which studies how bid and ask quotes are set in the 
@@ -33,7 +33,7 @@ class GM2Env(ptz.AECEnv):
     n_traders : int
         Number of traders.
     low : float, default=0.0
-        Minimum possible price or asset value..
+        Minimum possible price or asset value.
     high : float, default=1.0
         Maximum possible price or asset value.
     render_mode : {'ascii', 'human'}, default='ascii'
@@ -170,13 +170,6 @@ class GM2Env(ptz.AECEnv):
         -------
         : gym.Space
             The agent's action space.
-
-        Notes
-        -----
-        For market makers, the action is a dictionary containing 'ask' and 'bid' 
-        values. These values can be passed either as scalar floats (e.g., 0.8) or 
-        as NumPy arrays with a single float entry (e.g., np.array([0.8])) — both 
-        formats are accepted.
         """
         if self._ismaker(agent):
             space = gym.spaces.Dict({
@@ -356,6 +349,13 @@ class GM2Env(ptz.AECEnv):
         ------
         ValueError
             If the maximum number of episodes has been reached or an invalid action has been performed.
+
+        Notes
+        -----
+        For market makers, the action is a dictionary containing 'ask' and 'bid' 
+        values. These values can be passed either as scalar floats (e.g., 0.8) or 
+        as NumPy arrays with a single float entry (e.g., np.array([0.8])) — both 
+        formats are accepted.
         """
         curr_agent = self.agent_selection
         curr_agent_idx = self.agent_name_mapping[curr_agent]
