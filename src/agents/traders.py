@@ -52,11 +52,11 @@ class Trader(Agent):
         Update the internal state of the agent based on the received reward
         (not used for this trader agent).
         """
-        pass
+        return
 
 
     def reset(self) -> None:
         """
         Reset internal state (not used for this trader agent).
         """
-        pass
+        return
