@@ -22,23 +22,6 @@ class GMEnv(ptz.AECEnv):
     Traders may choose to BUY, SELL, or PASS. For each trade, if they decide to transact,
     the trader selects the dealer offering the most advantageous price given
     their private signal about the asset's true value.
-
-    Parameters
-    ----------
-    generate_vt : Callable[[], float]
-        Function that returns the true value for the asset at the beginning of each episode.
-    n_episodes : int
-        Total number of episodes to simulate.
-    n_makers : int
-        Number of market makers.
-    n_traders : int
-        Number of traders.
-    low : float, default=0.0
-        Minimum possible price or asset value.
-    high : float, default=1.0
-        Maximum possible price or asset value.
-    render_mode : {'ascii', 'human'}, default='ascii'
-        Mode for rendering the environment.
     
     Attributes
     ----------      
@@ -118,12 +101,28 @@ class GMEnv(ptz.AECEnv):
         n_traders: int,
         low: float = 0.0,
         high: float = 1.0,
+        decimal_places: int = 2,
         render_mode: Literal['ascii', 'human'] = 'ascii'
     ):
         """
         Parameters
         ----------
-        See class-level docstring for full parameter descriptions.
+        generate_vt : Callable[[], float]
+            Function that returns the true value for the asset at the beginning of each episode.
+        n_episodes : int
+            Total number of episodes to simulate.
+        n_makers : int
+            Number of market makers.
+        n_traders : int
+            Number of traders.
+        low : float, default=0.0
+            Minimum possible price or asset value.
+        high : float, default=1.0
+            Maximum possible price or asset value.
+        decimal_places : int, default=2
+            Number of decimal places to which rewards are rounded.
+        render_mode : {'ascii', 'human'}, default='ascii'
+            Mode for rendering the environment.
             
         Raises
         ------
@@ -143,6 +142,7 @@ class GMEnv(ptz.AECEnv):
         self.n_traders = n_traders
         self.low = low
         self.high = high
+        self.decimal_places = decimal_places
         self.render_mode = render_mode
 
         self.makers = [f'maker_{idx}' for idx in range(n_makers)]
@@ -384,6 +384,8 @@ class GMEnv(ptz.AECEnv):
                 reward = self.max_bid_price - self.true_value
                 selected_makers_idx = np.where(self._bid_prices == self.max_bid_price)[0]
             
+            reward = round(reward, self.decimal_places)
+
             for idx, agent in enumerate(self.possible_agents):
                 if self._istrader(agent) and agent in self.agents:
                     self.rewards[agent] = reward
