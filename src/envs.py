@@ -2,6 +2,7 @@ import gym
 import numpy as np
 import pettingzoo as ptz
 
+from copy import deepcopy
 from enum import Enum
 from gym.spaces import Box, Discrete
 from pettingzoo.utils import agent_selector as AgentSelector
@@ -9,18 +10,18 @@ from typing import Callable, Dict, Literal, Tuple
 
 
 
-class GM2Env(ptz.AECEnv):
+class GMEnv(ptz.AECEnv):
     """
-    Glosten-Milgrom 2 (GM2) environment for simulating a single asset market.
+    Glosten-Milgrom (GM) environment for simulating a single-asset dealer market.
 
-    This environment is based on the microstructure model introduced by Glosten 
-    and Milgrom (1985), which studies how bid and ask quotes are set in the 
-    presence of asymmetric information.
+    This environment is inspired by the microstructure model introduced
+    by Glosten and Milgrom (1985), which analyzes how bid and ask quotes are set
+    in the presence of asymmetric information.
 
-    In this version, traders are not allowed to pass; their only 
-    possible actions are to BUY or SELL. Makers set bid and ask prices, and a 
-    randomly chosen trader makes a transaction decision based on the prices and 
-    their private signal (the true value).
+    In this version, multiple market makers quote bid and ask prices for a single asset.
+    Traders may choose to BUY, SELL, or PASS. For each trade, if they decide to transact,
+    the trader selects the dealer offering the most advantageous price given
+    their private signal about the asset's true value.
 
     Parameters
     ----------
@@ -59,6 +60,8 @@ class GM2Env(ptz.AECEnv):
         Name of the agent whose turn it is to act.
     rewards : dict
         Latest rewards assigned to each agent after a step.
+    cumulative_rewards : dict
+        Sum of the rewards assigned to each agent.
     observations : dict
         Latest observations available to each agent.
     infos : dict
@@ -67,6 +70,8 @@ class GM2Env(ptz.AECEnv):
         Flags indicating whether an agent has terminated.
     truncations : dict
         Flags indicating whether an agent was truncated (due to episode limit).
+    true_value : float
+        Holds the true underlying value of the asset for the current episode.
     min_ask_price : float
         Lowest ask price among all makers in the current step.
     max_bid_price : float
@@ -83,14 +88,14 @@ class GM2Env(ptz.AECEnv):
     """
 
     metadata = {
-        'name': 'Glosten-Milgrom-2_environment',
+        'name': 'Glosten-Milgrom_environment',
         'render_modes': ['ascii', 'human']
     }
 
 
     class AgentType(Enum):
         """
-        Agent types in the GM2 environment.
+        Agent types in the GM environment.
         """
         MAKER = 0
         TRADER = 1
@@ -102,6 +107,7 @@ class GM2Env(ptz.AECEnv):
         """
         BUY = 0
         SELL = 1
+        PASS = 2
 
 
     def __init__(
@@ -140,16 +146,11 @@ class GM2Env(ptz.AECEnv):
         self.render_mode = render_mode
 
         self.makers = [f'maker_{idx}' for idx in range(n_makers)]
-        """List of maker agent names."""
         self.traders = [f'trader_{idx}' for idx in range(n_traders)]
-        """List of trader agent names."""
 
         self.possible_agents = self.makers + self.traders
-        """Full list of all agents"""
         self.agent_name_mapping = {agent:idx for idx, agent in enumerate(self.possible_agents)}
-        """Mapping from agent name to index."""
-        self.agents_type = [GM2Env.AgentType.MAKER] * n_makers + [GM2Env.AgentType.TRADER] * n_traders
-        """Agent type for each agent."""
+        self.agents_type = [GMEnv.AgentType.MAKER] * n_makers + [GMEnv.AgentType.TRADER] * n_traders
         return
 
 
@@ -157,7 +158,7 @@ class GM2Env(ptz.AECEnv):
         """
         Returns the action space for a given agent.
 
-        Makers choose ask and bid prices. Traders choose whether to buy or sell.
+        Makers choose ask and bid prices. Traders choose whether to buy, sell or pass.
 
         Parameters
         ----------
@@ -178,12 +179,12 @@ class GM2Env(ptz.AECEnv):
             })
         else:
             space = gym.spaces.Dict({
-                'operation': Discrete(len(GM2Env.TraderAction), seed=seed)
+                'operation': Discrete(len(GMEnv.TraderAction), seed=seed)
             })
         return space
 
 
-    def observation_space(self, agent, seed: int|None = None) -> gym.Space:
+    def observation_space(self, agent: str, seed: int|None = None) -> gym.Space:
         """
         Returns the observation space for a given agent.
 
@@ -195,7 +196,7 @@ class GM2Env(ptz.AECEnv):
         agent : str
             Name of the agent.
         seed : int, optional
-            Random seed. Default is None, in this case a random seed will be used.
+            Random seed. Default is None, so a random seed will be used.
 
         Returns
         -------
@@ -231,7 +232,7 @@ class GM2Env(ptz.AECEnv):
             observation = {}
         else:
             observation = {
-                'true_value': self._true_value,
+                'true_value': self.true_value,
                 'min_ask_price': self.min_ask_price,
                 'max_bid_price': self.max_bid_price
             }
@@ -251,15 +252,16 @@ class GM2Env(ptz.AECEnv):
         """
         state = {
             'episode': self.episode,
+            'possible_agents': self.possible_agents,
             'agents': self.agents,
-            'true_value': self._true_value,
+            'true_value': self.true_value,
             'ask_prices': self._ask_prices,
             'bid_prices': self._bid_prices,
             'min_ask_price': self.min_ask_price,
             'max_bid_price': self.max_bid_price,
             'trader_action': self.trader_action,
             'rewards': np.array(list(self.rewards.values()), dtype=np.float64),
-            'cum_rewards': np.array(list(self._cumulative_rewards.values()), dtype=np.float64),
+            'cumulative_rewards': np.array(list(self.cumulative_rewards.values()), dtype=np.float64),
             'terminations': np.array(list(self.terminations.values()), dtype=np.bool),
             'truncations': np.array(list(self.truncations.values()), dtype=np.bool)
         }
@@ -290,42 +292,37 @@ class GM2Env(ptz.AECEnv):
         self._np_random, self._np_random_seed = gym.utils.seeding.np_random(seed)
 
         self.episode = 0
-        """Current episode."""
-        self._true_value = self.generate_vt()
+        self.true_value = self.generate_vt()
 
         self.agents = self.makers + [str(self._np_random.choice(self.traders))]
-        """Agents currently active."""
         self._agent_selector = AgentSelector(self.agents)
         self.agent_selection = self._agent_selector.next()
-        """Name of the agent whose turn it is to act."""
 
         self._ask_prices = np.zeros(self.n_makers, dtype=np.float64)
         self._bid_prices = np.zeros(self.n_makers, dtype=np.float64)
         
         self.min_ask_price = self.high
-        """Lowest ask price."""
         self.max_bid_price = self.low
-        """Highest bid price."""
         self.trader_action = None
-        """The last action taken by the trader."""
 
         self.rewards = {agent: 0 for agent in self.possible_agents}
-        self._cumulative_rewards = {agent: 0 for agent in self.possible_agents}
-        
-        self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
-        self.truncations = {agent: False for agent in self.possible_agents}
-        
+        self.cumulative_rewards = {agent: 0 for agent in self.possible_agents}
+        self._cumulative_rewards = self.cumulative_rewards
+
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
         self.infos = {agent: {} for agent in self.possible_agents}
+
+        self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
+        self.truncations = {agent: False for agent in self.possible_agents}
         return self.observations, self.infos
 
 
-    def step(self, action: 'Dict[str, GM2Env.TraderAction|int|float|np.ndarray]') -> Tuple[Dict, Dict, Dict, Dict, Dict]:
+    def step(self, action: 'Dict[str, GMEnv.TraderAction|int|float|np.ndarray]') -> Tuple[Dict, Dict, Dict, Dict, Dict]:
         """
         Executes a step in the environment with the provided action.
 
-        Each maker sets prices; the trader decides to buy or sell. Rewards are 
-        computed based on the resulting transaction and the true value.
+        Each maker sets prices; the trader decides to buy, sell or pass.
+        Rewards are computed based on the resulting transaction and the true value.
 
         Parameters
         ----------
@@ -348,7 +345,8 @@ class GM2Env(ptz.AECEnv):
         Raises
         ------
         ValueError
-            If the maximum number of episodes has been reached or an invalid action has been performed.
+            If the maximum number of episodes has been reached or an invalid action
+            has been performed given the current agent.
 
         Notes
         -----
@@ -362,6 +360,7 @@ class GM2Env(ptz.AECEnv):
         
         action, ok = self._assert_and_format_action(curr_agent, action)
 
+        # Update state given current action
         if self.episode >= self.n_episodes:
             raise ValueError('maximum number of episodes reached')
         if not ok:
@@ -376,35 +375,42 @@ class GM2Env(ptz.AECEnv):
         else:
             self.trader_action = action['operation']
         
-        if self._agent_selector.is_last():
-            reward = self._true_value - self.min_ask_price \
-                if self.trader_action == GM2Env.TraderAction.BUY else self.max_bid_price - self._true_value
+        # Compute rewards
+        if self._agent_selector.is_last() and self.trader_action != GMEnv.TraderAction.PASS:
+            if self.trader_action == GMEnv.TraderAction.BUY:
+                reward = self.true_value - self.min_ask_price
+                selected_makers_idx = np.where(self._ask_prices == self.min_ask_price)[0]
+            elif self.trader_action == GMEnv.TraderAction.SELL:
+                reward = self.max_bid_price - self.true_value
+                selected_makers_idx = np.where(self._bid_prices == self.max_bid_price)[0]
             
-            selected_makers_idx = np.where(self._ask_prices == self.min_ask_price)[0] \
-                if self.trader_action == GM2Env.TraderAction.BUY else np.where(self._bid_prices == self.max_bid_price)[0]
-
             for idx, agent in enumerate(self.possible_agents):
-                if agent not in self.agents:
-                    self.rewards[agent] = 0
-                elif self._ismaker(agent):
-                    self.rewards[agent] = - reward / len(selected_makers_idx) if idx in selected_makers_idx else 0
-                else:
+                if self._istrader(agent) and agent in self.agents:
                     self.rewards[agent] = reward
+                elif self._ismaker(agent) and idx in selected_makers_idx:
+                    self.rewards[agent] = - reward / len(selected_makers_idx)
+                else:
+                    self.rewards[agent] = 0
+                self.cumulative_rewards[agent] += self.rewards[agent]
+        else:
+            self.rewards = {agent: 0 for agent in self.possible_agents}
             
-            self._accumulate_rewards()
+        observations = {agent: self.observe(agent) for agent in self.possible_agents}
+        infos = {agent: {} for agent in self.possible_agents}
+        rewards = deepcopy(self.rewards)
+        terminations = deepcopy(self.terminations)
+        truncations = deepcopy(self.truncations)
 
-        self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-        #self.infos = {agent: {} for agent in self.possible_agents}
-
+        # Render the environment
         if self.render_mode == 'human':
             self.render()
 
+        # Perform a partial reset at the end of an episode
         if self._agent_selector.is_last():
             self.episode += 1
             #self._true_value = self.val_gen()
 
-            self.agents = self.makers + [str(self._np_random.choice(self.traders))]
-            self._agent_selector = AgentSelector(self.agents)
+            self.agents = self.makers + [str(self._np_random.choice(self.traders))] if self.episode < self.n_episodes else []
 
             self._ask_prices = np.zeros(self.n_makers, dtype=np.float64)
             self._bid_prices = np.zeros(self.n_makers, dtype=np.float64)
@@ -413,10 +419,15 @@ class GM2Env(ptz.AECEnv):
             self.max_bid_price = self.low
             self.trader_action = None
             
+            self.rewards = {agent: 0 for agent in self.possible_agents}
+
+            self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
+            self.infos = {agent: {} for agent in self.possible_agents}
+
             self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
             self.truncations = {agent: self.episode >= self.n_episodes for agent in self.possible_agents}
         self.agent_selection = self._agent_selector.next()
-        return self.observations, self.rewards, self.terminations, self.truncations, self.infos
+        return observations, rewards, terminations, truncations, infos
 
 
     def render(self) -> str|None:
@@ -452,8 +463,8 @@ class GM2Env(ptz.AECEnv):
     def _assert_and_format_action(
         self,
         agent: str,                          
-        action: 'Dict[str, GM2Env.TraderAction|int|float|np.ndarray]'
-    ) -> Tuple[Dict[str, TraderAction|int], bool]:
+        action: 'Dict[str, GMEnv.TraderAction|int|float|np.ndarray]'
+    ) -> Tuple[Dict[str, TraderAction|float], bool]:
         """
         Validates and formats the agent's action.
 
@@ -477,13 +488,13 @@ class GM2Env(ptz.AECEnv):
         try:
             for k, v in action.items():
                 action[k] = np.array([v], dtype=np.float64) if isinstance(v, float) else v
-                action[k] = v.value if isinstance(v, GM2Env.TraderAction) else action[k]
+                action[k] = v.value if isinstance(v, GMEnv.TraderAction) else action[k]
             
             ok = self.action_space(agent).contains(action)
 
             for k, v in action.items():
                 action[k] =float(v[0]) if isinstance(v, np.ndarray) else v
-                action[k] = GM2Env.TraderAction(v) if isinstance(v, int) else action[k]
+                action[k] = GMEnv.TraderAction(v) if isinstance(v, int) else action[k]
         except Exception :
             return None, False
         return action, ok
@@ -503,7 +514,7 @@ class GM2Env(ptz.AECEnv):
         : bool
             True if the agent is a maker, False otherwise.
         """
-        return self.agents_type[self.agent_name_mapping[agent]] == GM2Env.AgentType.MAKER
+        return self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.MAKER
 
 
     def _istrader(self, agent: str) -> bool:
@@ -517,15 +528,15 @@ class GM2Env(ptz.AECEnv):
 
         Returns
         -------
-        bool
+        : bool
             True if the agent is a trader, False otherwise.
         """
-        return self.agents_type[self.agent_name_mapping[agent]] == GM2Env.AgentType.TRADER
+        return self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.TRADER
 
 
     def __str__(self) -> str:
         s = f'Episode {self.episode}/{self.n_episodes}:\n' + \
-            f' - true value -> {self._true_value}\n' + \
+            f' - true value -> {self.true_value}\n' + \
             f' - curr. agent -> {self.agent_selection}\n' + \
             f' - min ask price -> {self.min_ask_price}\n' + \
             f' - max bid price -> {self.max_bid_price}\n' + \
