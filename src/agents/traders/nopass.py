@@ -1,27 +1,35 @@
 from typing import Dict
 
-from .agent import Agent
-from ..envs import GM2Env
+from ..agent import Agent
+from ...envs import GMEnv
 
 
 
-class Trader(Agent):
+class NoPassTrader(Agent):
     """
-    Trader agent for the GM2 environment.
+    Trader agent for the GM environment.
 
     The trader observes the current market state and chooses between two actions:
-    buying or selling. The decision rule is based on the comparison between how 
-    favorable the market is for buying vs selling, relative to the true value of the asset.
-
-    Parameters
-    ----------
-    name : str, default='agent'
-        Unique identifier for the trader (e.g., "trader_0").
+    buy or sell. The decision rule is based on the comparison between how favorable
+    the market is for buying vs selling, relative to the true value of the asset.
     """
+
+    def __init__(self, name: str = 'trader'):
+        """
+        Parameters
+        ----------
+        name : str, default='trader'
+            Unique identifier for the agent.
+        """
+        super().__init__(name)
+        self.action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL]
+        self.n_arms = len(self.action_space)
+        return
+
 
     def act(self, observation: Dict) -> Dict:
         """
-        Decide to BUY or SELL based on the current market observation.
+        Decide to BUY, SELL based on the current market observation.
 
         Parameters
         ----------
@@ -41,22 +49,21 @@ class Trader(Agent):
         max_bid = observation["max_bid_price"]
 
         if true_value - min_ask >= max_bid - true_value:
-            action = {"operation": GM2Env.TraderAction.BUY}
+            action = {"operation": GMEnv.TraderAction.BUY}
         else:
-            action = {"operation": GM2Env.TraderAction.SELL}
+            action = {"operation": GMEnv.TraderAction.SELL}
         return action
 
 
     def update(self, reward: float) -> None:
         """
-        Update the internal state of the agent based on the received reward
-        (not used for this trader agent).
+        Not used for this trader agent.
         """
         return
 
 
     def reset(self) -> None:
         """
-        Reset internal state (not used for this trader agent).
+        Not used for this trader agent.
         """
         return

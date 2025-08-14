@@ -5,19 +5,15 @@ from typing import Dict
 
 class Agent(ABC):
     """
-    Interface for agents in the GM2 environment.
-
-    Parameters
-    ----------
-    name : str, default='agent'
-        Unique identifier for the agent.
+    Interface for agents in the GM environment.
     """
 
     def __init__(self, name: str = 'agent'):
         """
         Parameters
         ----------
-        See class-level docstring for full parameter descriptions.
+        name : str, default='agent'
+            Unique identifier for the agent.
         """
         super().__init__()
         self.name = name
