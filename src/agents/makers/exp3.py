@@ -25,8 +25,6 @@ class MakerEXP3(Agent):
         Number of actions (arms) in the action space.
     weights : np.ndarray
         Current Exp3 weights for each arm, initially all ones.
-    cumulative_reward : float
-        Sum of all rewards obtained by the agent so far.
     last_action : tuple or None
         Last chosen arm index and its associated selection probability.
     """
@@ -69,7 +67,6 @@ class MakerEXP3(Agent):
         self.n_arms = len(self.action_space)
 
         self.weights = np.ones(self.n_arms)
-        self.cumulative_reward = 0.0
         self.last_action = None
         return
 
@@ -128,6 +125,5 @@ class MakerEXP3(Agent):
 
     def reset(self) -> None:
         self.weights = np.ones(self.n_arms)
-        self.cumulative_reward = 0.0
         self.last_action = None
         return
