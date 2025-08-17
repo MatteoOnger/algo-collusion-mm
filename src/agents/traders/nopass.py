@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 from ..agent import Agent
 from ...envs import GMEnv
@@ -12,6 +12,13 @@ class NoPassTrader(Agent):
     The trader observes the current market state and chooses between two actions:
     buy or sell. The decision rule is based on the comparison between how favorable
     the market is for buying vs selling, relative to the true value of the asset.
+
+    Attributes
+    ----------
+    action_space : list
+        All possible available actions.
+    n_arms : int
+        Number of actions (arms) in the action space.
     """
 
     def __init__(self, name: str = 'trader'):
@@ -22,9 +29,13 @@ class NoPassTrader(Agent):
             Unique identifier for the agent.
         """
         super().__init__(name)
-        self.action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL]
-        self.n_arms = len(self.action_space)
+        self._action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL]
         return
+
+
+    @property
+    def action_space(self) -> List:
+        return self._action_space
 
 
     def act(self, observation: Dict) -> Dict:

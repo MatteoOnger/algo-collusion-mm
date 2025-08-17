@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 from ..agent import Agent
 from ...envs import GMEnv
@@ -12,6 +12,13 @@ class BasicTrader(Agent):
     The trader observes the current market state and chooses between three actions:
     buy, sell or pass. The decision rule is based on the comparison between how 
     favorable the market is for buying vs selling vs passing, relative to the true value of the asset.
+
+    Attributes
+    ----------
+    action_space : list
+        All possible available actions.
+    n_arms : int
+        Number of actions (arms) in the action space.
     """
 
     def __init__(self, name: str = 'trader'):
@@ -22,9 +29,13 @@ class BasicTrader(Agent):
             Unique identifier for the agent.
         """
         super().__init__(name)
-        self.action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL, GMEnv.TraderAction.PASS]
-        self.n_arms = len(self.action_space)
+        self._action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL, GMEnv.TraderAction.PASS]
         return
+
+
+    @property
+    def action_space(self) -> List:
+        return self._action_space
 
 
     def act(self, observation: Dict) -> Dict:

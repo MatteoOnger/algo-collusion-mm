@@ -1,11 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 
 
 class Agent(ABC):
     """
     Interface for agents in the GM environment.
+
+    Attributes
+    ----------
+    action_space : list
+        All possible available actions.
+    n_arms : int
+        Number of actions (arms) in the action space.
     """
 
     def __init__(self, name: str = 'agent'):
@@ -18,6 +25,17 @@ class Agent(ABC):
         super().__init__()
         self.name = name
         return
+
+
+    @property
+    def n_arms(self) -> int:
+        return len(self.action_space)
+
+
+    @property
+    @abstractmethod
+    def action_space(self) -> List:
+        pass
 
 
     @abstractmethod

@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Dict
+from typing import Dict, List
 
 from ..agent import Agent
 
@@ -32,7 +32,7 @@ class MakerEXP3(Agent):
     def __init__(
         self,
         gamma: float,
-        ticksize: float,
+        ticksize: float = 0.05,
         low: float = 0.0,
         high: float = 1.0,
         name: str = 'maker',
@@ -43,7 +43,7 @@ class MakerEXP3(Agent):
         ----------
         gamma : float
             Exploration parameter of Exp3, in the range (0, 1].
-        ticksize : float
+        ticksize : float, default=0.05
             Minimum increment for prices in the action space.
         low : float, default=0.0
             Minimum price allowed.
@@ -59,16 +59,21 @@ class MakerEXP3(Agent):
         self.ticksize = ticksize
         self.low = low
         self.high = high
+        self.seed = seed
 
         self._rng = np.random.default_rng(seed)
 
         self.prices =  np.arange(self.low, self.high + self.ticksize, self.ticksize)
-        self.action_space = [(float(ask), float(bid)) for ask in self.prices for bid in self.prices if bid <= ask]
-        self.n_arms = len(self.action_space)
+        self._action_space = [(float(ask), float(bid)) for ask in self.prices for bid in self.prices if bid <= ask]
 
         self.weights = np.ones(self.n_arms)
         self.last_action = None
         return
+
+
+    @property
+    def action_space(self) -> List:
+        return self._action_space
 
 
     @property
@@ -124,6 +129,7 @@ class MakerEXP3(Agent):
 
 
     def reset(self) -> None:
+        self._rng = np.random.default_rng(self.seed)
         self.weights = np.ones(self.n_arms)
         self.last_action = None
         return
