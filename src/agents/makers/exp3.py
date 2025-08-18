@@ -112,7 +112,7 @@ class MakerEXP3(Agent):
         strategy = self.action_space[arm_idx]
         self.last_action = (arm_idx, self.probs[arm_idx])
 
-        self.history.add(strategy)
+        self.history.record(strategy)
         return {
             'ask_price': strategy[0],
             'bid_price': strategy[1]

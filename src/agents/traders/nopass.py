@@ -64,7 +64,7 @@ class NoPassTrader(Agent):
         else:
             action = GMEnv.TraderAction.SELL
         
-        self.history.add(action)
+        self.history.record(action)
         return {
             'operation': action 
         }

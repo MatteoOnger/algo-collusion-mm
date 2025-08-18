@@ -142,7 +142,7 @@ class MakerMLQL(Agent):
         self.last_action = arm_idx
         self.t += 1
 
-        self.history.add(strategy)
+        self.history.record(strategy)
         return {
             'ask_price': strategy[0],
             'bid_price': strategy[1]

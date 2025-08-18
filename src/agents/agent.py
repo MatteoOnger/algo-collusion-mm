@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Any, Dict, List
 
 
 
@@ -13,6 +13,8 @@ class Agent(ABC):
         All possible available actions.
     n_arms : int
         Number of actions (arms) in the action space.
+    history : Agent.History
+        Internal tracker of actions taken.
     """
 
 
@@ -81,19 +83,41 @@ class Agent(ABC):
 
     class History():
         """
+        Container for tracking the sequence of actions taken by the agent.
+
+        Attributes
+        ----------
+        history : list
+            Chronological list of actions taken.
+        freqs : dict
+            Mapping from action to the number of times it has been chosen.
         """
         
-        def __init__(self, action_space: list):
+        def __init__(self, action_space: List):
             """
+            Parameters
+            ----------
+            action_space : list
+                The set of possible actions available to the agent.
             """
             self.history = list()
             self.freqs = {action:0 for action in action_space}
             return
 
 
-        def add(self, action) -> None:
+        def record(self, strategy: Any) -> None:
             """
+            Record a new action in the history.
+
+            Parameters
+            ----------
+            action : Any
+                The strategy chosen by the agent, must be part of `action_space`.
             """
-            self.history.append(action)
-            self.freqs[action] += 1
+            self.history.append(strategy)
+            self.freqs[strategy] += 1
             return
+        
+
+        def __len__(self) -> int:
+            return len(self.history)
