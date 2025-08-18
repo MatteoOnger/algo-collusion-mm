@@ -1,3 +1,5 @@
+import numpy as np
+
 from typing import Dict, List
 
 from ..agent import Agent
@@ -21,14 +23,18 @@ class BasicTrader(Agent):
         Number of actions (arms) in the action space.
     """
 
-    def __init__(self, name: str = 'trader'):
+    def __init__(self, name: str = 'trader', seed: int | None = None):
         """
         Parameters
         ----------
         name : str, default='trader'
             Unique identifier for the agent.
+        seed : int or None, default=None
+            Seed for the internal random generator.
         """
+        self._rng = np.random.default_rng(seed)
         self._action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL, GMEnv.TraderAction.PASS]
+        
         super().__init__(name)
         return
 
@@ -61,7 +67,9 @@ class BasicTrader(Agent):
 
         if max(true_value - min_ask, max_bid - true_value) < 0:
             action = GMEnv.TraderAction.PASS
-        elif true_value - min_ask >= max_bid - true_value:
+        elif np.isclose(true_value - min_ask, max_bid - true_value):
+            action = self._rng.choice([GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL])
+        elif true_value - min_ask > max_bid - true_value:
             action = GMEnv.TraderAction.BUY
         else:
             action = GMEnv.TraderAction.SELL
