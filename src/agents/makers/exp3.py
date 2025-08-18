@@ -36,6 +36,7 @@ class MakerEXP3(Agent):
         low: float = 0.0,
         high: float = 1.0,
         name: str = 'maker',
+        decimal_places: int = 2,
         seed: int | None = None
     ):
         """
@@ -51,6 +52,8 @@ class MakerEXP3(Agent):
             Maximum price allowed.
         name : str, default='maker'
             Name assigned to the agent.
+        decimal_places : int, default=2
+            Number of decimal places to which rewards are rounded.
         seed : int or None, default=None
             Seed for the internal random generator.
         """
@@ -63,7 +66,7 @@ class MakerEXP3(Agent):
         self._rng = np.random.default_rng(seed)
 
         self.prices =  np.arange(self.low, self.high + self.ticksize, self.ticksize)
-        self._action_space = [(float(ask), float(bid)) for ask in self.prices for bid in self.prices if bid <= ask]
+        self._action_space = [(round(float(ask), decimal_places), round(float(bid), decimal_places)) for ask in self.prices for bid in self.prices if bid <= ask]
 
         super().__init__(name)
 
