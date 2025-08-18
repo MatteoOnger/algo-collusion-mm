@@ -28,8 +28,8 @@ class NoPassTrader(Agent):
         name : str, default='trader'
             Unique identifier for the agent.
         """
-        super().__init__(name)
         self._action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL]
+        super().__init__(name)
         return
 
 
@@ -55,15 +55,20 @@ class NoPassTrader(Agent):
         action : dict
             A dictionary with key 'operation' and value `GM2Enc.TraderAction`.
         """
-        true_value = observation["true_value"]
-        min_ask = observation["min_ask_price"]
-        max_bid = observation["max_bid_price"]
+        true_value = observation['true_value']
+        min_ask = observation['min_ask_price']
+        max_bid = observation['max_bid_price']
 
         if true_value - min_ask >= max_bid - true_value:
-            action = {"operation": GMEnv.TraderAction.BUY}
+            action = GMEnv.TraderAction.BUY
         else:
-            action = {"operation": GMEnv.TraderAction.SELL}
-        return action
+            action = GMEnv.TraderAction.SELL
+        
+        self.history.add(action)
+        return {
+            'operation': action 
+        }
+
 
 
     def update(self, reward: float) -> None:

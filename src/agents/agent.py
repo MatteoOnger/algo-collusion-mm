@@ -15,6 +15,7 @@ class Agent(ABC):
         Number of actions (arms) in the action space.
     """
 
+
     def __init__(self, name: str = 'agent'):
         """
         Parameters
@@ -24,6 +25,7 @@ class Agent(ABC):
         """
         super().__init__()
         self.name = name
+        self.history = Agent.History(self.action_space)
         return
 
 
@@ -75,3 +77,23 @@ class Agent(ABC):
         Reset the internal state of the agent, if any.
         """
         pass
+
+
+    class History():
+        """
+        """
+        
+        def __init__(self, action_space: list):
+            """
+            """
+            self.history = list()
+            self.freqs = {action:0 for action in action_space}
+            return
+
+
+        def add(self, action) -> None:
+            """
+            """
+            self.history.append(action)
+            self.freqs[action] += 1
+            return
