@@ -1,10 +1,9 @@
-import gym
+import gymnasium as gym
 import numpy as np
 import pettingzoo as ptz
 
 from copy import deepcopy
 from enum import Enum
-from gym.spaces import Box, Discrete
 from pettingzoo.utils import agent_selector as AgentSelector
 from typing import Callable, Dict, Literal, Tuple
 
@@ -174,12 +173,12 @@ class GMEnv(ptz.AECEnv):
         """
         if self._ismaker(agent):
             space = gym.spaces.Dict({
-                'ask_price': Box(self.low, self.high, dtype=np.float64, seed=seed),
-                'bid_price': Box(self.low, self.high, dtype=np.float64, seed=seed)
+                'ask_price': gym.spaces.Box(self.low, self.high, dtype=np.float64, seed=seed),
+                'bid_price': gym.spaces.Box(self.low, self.high, dtype=np.float64, seed=seed)
             })
         else:
             space = gym.spaces.Dict({
-                'operation': Discrete(len(GMEnv.TraderAction), seed=seed)
+                'operation': gym.spaces.Discrete(len(GMEnv.TraderAction), seed=seed)
             })
         return space
 
@@ -207,9 +206,9 @@ class GMEnv(ptz.AECEnv):
             space = gym.spaces.Dict({})
         else:
             space = Dict({
-                'true_value': Box(self.low, self.high, dtype=np.float64, seed=seed),
-                'min_ask_price': Box(self.low, self.high, dtype=np.float64, seed=seed),
-                'max_bid_price': Box(self.low, self.high, dtype=np.float64, seed=seed)
+                'true_value': gym.spaces.Box(self.low, self.high, dtype=np.float64, seed=seed),
+                'min_ask_price': gym.spaces.Box(self.low, self.high, dtype=np.float64, seed=seed),
+                'max_bid_price': gym.spaces.Box(self.low, self.high, dtype=np.float64, seed=seed)
             })
         return space
 
