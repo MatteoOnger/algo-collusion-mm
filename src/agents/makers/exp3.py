@@ -31,7 +31,7 @@ class MakerEXP3(Agent):
 
     def __init__(
         self,
-        gamma: float,
+        epsilon: float,
         ticksize: float = 0.05,
         low: float = 0.0,
         high: float = 1.0,
@@ -42,7 +42,7 @@ class MakerEXP3(Agent):
         """
         Parameters
         ----------
-        gamma : float
+        epsilon : float
             Exploration parameter of Exp3, in the range (0, 1].
         ticksize : float, default=0.05
             Minimum increment for prices in the action space.
@@ -57,7 +57,7 @@ class MakerEXP3(Agent):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        self.gamma = gamma
+        self.epsilon = epsilon
         self.ticksize = ticksize
         self.low = low
         self.high = high
@@ -91,7 +91,7 @@ class MakerEXP3(Agent):
             Array of shape (n_arms,) representing probability of selecting
             each arm according to the Exp3 formula.
         """
-        return (1 - self.gamma) * self.weights / np.sum(self.weights) + self.gamma / self.n_arms
+        return (1 - self.epsilon) * self.weights / np.sum(self.weights) + self.epsilon / self.n_arms
 
 
     def act(self, observation: Dict) -> Dict:
@@ -127,7 +127,7 @@ class MakerEXP3(Agent):
             return
         
         arm_idx, prob = self.last_action
-        self.weights[arm_idx] = self.weights[arm_idx] * np.exp(self.gamma * (reward/prob) / self.n_arms)
+        self.weights[arm_idx] = self.weights[arm_idx] * np.exp(self.epsilon * (reward/prob) / self.n_arms)
 
         self.last_action = None
         return
