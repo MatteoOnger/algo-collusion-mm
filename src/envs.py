@@ -392,7 +392,7 @@ class GMEnv(ptz.AECEnv):
                     self.rewards[agent] = - reward / len(selected_makers_idx)
                 else:
                     self.rewards[agent] = 0
-                self.cumulative_rewards[agent] += self.rewards[agent]
+                self.cumulative_rewards[agent] = round(self.cumulative_rewards[agent] + self.rewards[agent], self.decimal_places)
         else:
             self.rewards = {agent: 0 for agent in self.possible_agents}
             
