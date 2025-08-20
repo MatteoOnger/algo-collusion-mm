@@ -8,6 +8,7 @@ dependencies:
   - numpy
   - ipykernel
   - ipywidgets
+  - seaborn
   - pip
   - pip:
     - pettingzoo
