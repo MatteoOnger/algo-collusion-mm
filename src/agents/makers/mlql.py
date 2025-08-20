@@ -48,9 +48,10 @@ class MakerMLQL(Agent):
         self,
         alpha: float,
         gamma: float,
-        epsilon_init: float,
-        decay_rate: float,
-        epsilon_scheduler: str = 'exponential',
+        epsilon_init: float = 0.0,
+        decay_rate: float = 0.0,
+        epsilon_scheduler: str = 'constant',
+        q_init: float|np.ndarray = 0.0,
         ticksize: float = 0.05,
         low: float = 0.0,
         high: float = 1.0,
@@ -65,12 +66,17 @@ class MakerMLQL(Agent):
             Learning rate for Q-value updates, in the range (0, 1].
         gamma : float
             Discount factor for future rewards, in the range [0, 1].
-        epsilon_init : float
+        epsilon_init : float, default=0.0
             Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
-        decay_rate : float
+        decay_rate : float, default=0.0
             Decay rate applied to `epsilon` after each step.
-        epsilon_scheduler : str, default='exponential'
+        epsilon_scheduler : str, default='constant'
             Name of the scheduler used to update the expolarion rate epsilon.
+        q_init : float or np.ndarray, default=0.0
+            Initial values of the Q-table.
+            - If an integer, all entries in the Q-table are initialized to this value.
+            - If an array-like object, it must have the same shape as the Q-table, and each entry
+            will be used to initialize the corresponding Q-value.
         ticksize : float, default=0.05
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -89,6 +95,7 @@ class MakerMLQL(Agent):
         self.epsilon_init = epsilon_init
         self.decay_rate = decay_rate
         self.epsilon_scheduler = MakerMLQL.scheduler[epsilon_scheduler]
+        self.q_init = q_init
         self.ticksize = ticksize
         self.low = low
         self.high = high
@@ -104,7 +111,7 @@ class MakerMLQL(Agent):
 
         super().__init__(name)
 
-        self.Q = np.zeros(self.n_arms)
+        self.Q = np.zeros(self.n_arms) + self.q_init
         self.last_action = None
         return
 
@@ -167,7 +174,7 @@ class MakerMLQL(Agent):
 
     def reset(self) -> None:
         self._rng = np.random.default_rng(self.seed)
-        self.Q = np.zeros(self.n_arms)
+        self.Q = np.zeros(self.n_arms) + self.q_init
         self.last_action = None
         self.t = 0
         return
