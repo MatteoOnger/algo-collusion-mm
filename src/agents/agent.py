@@ -1,5 +1,7 @@
+import numpy as np
+
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Union
 
 
 
@@ -27,7 +29,7 @@ class Agent(ABC):
         """
         super().__init__()
         self.name = name
-        self.history = Agent.History(self.action_space)
+        self.history = Agent.History()
         return
 
 
@@ -83,26 +85,52 @@ class Agent(ABC):
 
     class History():
         """
-        Container for tracking the sequence of actions taken by the agent.
-
-        Attributes
-        ----------
-        history : list
-            Chronological list of actions taken.
-        freqs : dict
-            Mapping from action to the number of times it has been chosen.
+        Class for tracking the sequence of actions taken by the agent.
         """
         
-        def __init__(self, action_space: List):
+        def __init__(self):
             """
+            Initialize a new instance of History to track the actions done.
+            """
+            self._history = list()
+            return
+
+
+        def get_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+            """
+            Count the frequency of each action.
+
             Parameters
             ----------
-            action_space : list
-                The set of possible actions available to the agent.
+            key : int, slice, or tuple of ints/slices, default=[:]
+                Index, slice, or tuple specifying episodes (rows) and actions (columns).
+
+            Returns
+            -------
+            unique_pairs : np.ndarray
+                Array containing unique actions.
+            counts : np.ndarray
+                Array containing the count of unique action.
             """
-            self.history = list()
-            self.freqs = {action:0 for action in action_space}
-            return
+            unique_pairs, counts = np.unique(self.get_history(key), axis=0, return_counts=True)
+            return unique_pairs, counts
+
+
+        def get_history(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+            """
+            Retrieve a subset of the action history.
+
+            Parameters
+            ----------
+            key : int, slice, or tuple of ints/slices, default=[:]
+                Index, slice, or tuple specifying episodes (rows) and actions (columns).
+
+            Returns
+            -------
+            : np.ndarray
+                Subset of the action history specified by the key.
+            """
+            return np.array(self._history)[key]
 
 
         def record(self, strategy: Any) -> None:
@@ -114,10 +142,9 @@ class Agent(ABC):
             action : Any
                 The strategy chosen by the agent, must be part of `action_space`.
             """
-            self.history.append(strategy)
-            self.freqs[strategy] += 1
+            self._history.append(strategy)
             return
         
 
         def __len__(self) -> int:
-            return len(self.history)
+            return len(self._history)

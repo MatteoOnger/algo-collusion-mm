@@ -90,6 +90,8 @@ class MakerMLQL(Agent):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
+        super().__init__(name)
+
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon_init = epsilon_init
@@ -107,9 +109,7 @@ class MakerMLQL(Agent):
         self.epsilon = self.epsilon_scheduler(self.epsilon_init, self.decay_rate, self.t)
 
         self.prices =  np.round(np.arange(self.low, self.high + self.ticksize, self.ticksize), decimal_places)
-        self._action_space = [(float(ask), float(bid)) for ask in self.prices for bid in self.prices if bid <= ask]
-
-        super().__init__(name)
+        self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if bid <= ask])
 
         self.Q = np.zeros(self.n_arms) + self.q_init
         self.last_action = None

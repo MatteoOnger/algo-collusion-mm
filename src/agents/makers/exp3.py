@@ -57,6 +57,8 @@ class MakerEXP3(Agent):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
+        super().__init__(name)
+
         self.epsilon = epsilon
         self.ticksize = ticksize
         self.low = low
@@ -66,9 +68,7 @@ class MakerEXP3(Agent):
         self._rng = np.random.default_rng(seed)
 
         self.prices =  np.round(np.arange(self.low, self.high + self.ticksize, self.ticksize), decimal_places)
-        self._action_space = [(float(ask), float(bid)) for ask in self.prices for bid in self.prices if bid <= ask]
-
-        super().__init__(name)
+        self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if bid <= ask])
 
         self.weights = np.ones(self.n_arms)
         self.last_action = None

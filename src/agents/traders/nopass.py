@@ -32,10 +32,10 @@ class NoPassTrader(Agent):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        self._rng = np.random.default_rng(seed)
-        self._action_space = [GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL]
-
         super().__init__(name)
+
+        self._rng = np.random.default_rng(seed)
+        self._action_space = np.array([GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL])
         return
 
 
