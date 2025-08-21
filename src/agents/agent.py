@@ -38,6 +38,14 @@ class Agent(ABC):
         return len(self.action_space)
 
 
+    def reset(self) -> None:
+        """
+        Reset the internal state of the agent.
+        """
+        self.history = Agent.History()
+        return
+
+
     @property
     @abstractmethod
     def action_space(self) -> List:
@@ -75,14 +83,6 @@ class Agent(ABC):
         pass
 
 
-    @abstractmethod
-    def reset(self) -> None:
-        """
-        Reset the internal state of the agent, if any.
-        """
-        pass
-
-
     class History():
         """
         Class for tracking the sequence of actions taken by the agent.
@@ -92,8 +92,43 @@ class Agent(ABC):
             """
             Initialize a new instance of History to track the actions done.
             """
-            self._history = list()
+            self._actions = list()
+            self._rewards = list()
             return
+
+
+        def get_actions(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+            """
+            Retrieve a subset of the action history.
+
+            Parameters
+            ----------
+            key : int, slice, or tuple of ints/slices, default=[:]
+                Index, slice, or tuple specifying episodes (rows) and actions (columns).
+
+            Returns
+            -------
+            : np.ndarray
+                Subset of the action history specified by the key.
+            """
+            return np.array(self._actions)[key]
+
+
+        def get_rewards(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+            """
+            Retrieve a subset of the reward history.
+
+            Parameters
+            ----------
+            key : int, slice, or tuple of ints/slices, default=[:]
+                Index, slice, or tuple specifying episodes (rows) and actions (columns).
+
+            Returns
+            -------
+            : np.ndarray
+                Subset of the reward history specified by the key.
+            """
+            return np.array(self._rewards)[key]
 
 
         def get_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
@@ -112,28 +147,11 @@ class Agent(ABC):
             counts : np.ndarray
                 Array containing the count of unique action.
             """
-            unique_pairs, counts = np.unique(self.get_history(key), axis=0, return_counts=True)
+            unique_pairs, counts = np.unique(self.get_actions(key), axis=0, return_counts=True)
             return unique_pairs, counts
 
 
-        def get_history(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
-            """
-            Retrieve a subset of the action history.
-
-            Parameters
-            ----------
-            key : int, slice, or tuple of ints/slices, default=[:]
-                Index, slice, or tuple specifying episodes (rows) and actions (columns).
-
-            Returns
-            -------
-            : np.ndarray
-                Subset of the action history specified by the key.
-            """
-            return np.array(self._history)[key]
-
-
-        def record(self, strategy: Any) -> None:
+        def record_action(self, action: Any) -> None:
             """
             Record a new action in the history.
 
@@ -142,9 +160,22 @@ class Agent(ABC):
             action : Any
                 The strategy chosen by the agent, must be part of `action_space`.
             """
-            self._history.append(strategy)
+            self._actions.append(action)
             return
-        
+
+
+        def record_reward(self, reward: float) -> None:
+            """
+            Record a new reward in the history.
+
+            Parameters
+            ----------
+            reward : float
+                The reward obtained by the agent.
+            """
+            self._rewards.append(reward)
+            return
+
 
         def __len__(self) -> int:
-            return len(self._history)
+            return len(self._actions)

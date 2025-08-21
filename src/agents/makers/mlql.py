@@ -153,7 +153,7 @@ class MakerMLQL(Agent):
         self.last_action = arm_idx
         self.t += 1
 
-        self.history.record(strategy)
+        self.history.record_action(strategy)
         return {
             'ask_price': strategy[0],
             'bid_price': strategy[1]
@@ -168,10 +168,12 @@ class MakerMLQL(Agent):
         self.Q[self.last_action] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action])
 
         self.last_action = None
+        self.history.record_reward(reward)
         return
 
 
     def reset(self) -> None:
+        super().reset()
         self._rng = np.random.default_rng(self.seed)
         self.Q = np.zeros(self.n_arms) + self.q_init
         self.last_action = None

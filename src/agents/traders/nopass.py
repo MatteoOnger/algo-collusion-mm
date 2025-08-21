@@ -72,21 +72,17 @@ class NoPassTrader(Agent):
         else:
             action = GMEnv.TraderAction.SELL
         
-        self.history.record(action)
+        self.history.record_action(action)
         return {
             'operation': action 
         }
 
 
     def update(self, reward: float) -> None:
-        """
-        Not used for this trader agent.
-        """
+        self.history.record_reward(reward)
         return
 
 
     def reset(self) -> None:
-        """
-        Not used for this trader agent.
-        """
+        super().reset()
         return

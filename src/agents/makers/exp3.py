@@ -115,7 +115,7 @@ class MakerEXP3(Agent):
         strategy = self.action_space[arm_idx]
         self.last_action = (arm_idx, self.probs[arm_idx])
 
-        self.history.record(strategy)
+        self.history.record_action(strategy)
         return {
             'ask_price': strategy[0],
             'bid_price': strategy[1]
@@ -130,10 +130,12 @@ class MakerEXP3(Agent):
         self.weights[arm_idx] = self.weights[arm_idx] * np.exp(self.epsilon * (reward/prob) / self.n_arms)
 
         self.last_action = None
+        self.history.record_reward(reward)
         return
 
 
     def reset(self) -> None:
+        super().reset()
         self._rng = np.random.default_rng(self.seed)
         self.weights = np.ones(self.n_arms)
         self.last_action = None
