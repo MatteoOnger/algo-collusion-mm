@@ -494,7 +494,7 @@ class GMEnv(ptz.AECEnv):
             ok = self.action_space(agent).contains(action)
 
             for k, v in action.items():
-                action[k] =float(v[0]) if isinstance(v, np.ndarray) else v
+                action[k] = round(float(v[0]), self.decimal_places) if isinstance(v, np.ndarray) else v
                 action[k] = GMEnv.TraderAction(v) if isinstance(v, int) else action[k]
         except Exception :
             return None, False

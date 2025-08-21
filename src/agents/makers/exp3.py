@@ -65,8 +65,8 @@ class MakerEXP3(Agent):
 
         self._rng = np.random.default_rng(seed)
 
-        self.prices =  np.arange(self.low, self.high + self.ticksize, self.ticksize)
-        self._action_space = [(round(float(ask), decimal_places), round(float(bid), decimal_places)) for ask in self.prices for bid in self.prices if bid <= ask]
+        self.prices =  np.round(np.arange(self.low, self.high + self.ticksize, self.ticksize), decimal_places)
+        self._action_space = [(float(ask), float(bid)) for ask in self.prices for bid in self.prices if bid <= ask]
 
         super().__init__(name)
 
