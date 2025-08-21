@@ -309,7 +309,7 @@ class GMEnv(ptz.AECEnv):
         self._cumulative_rewards = self.cumulative_rewards
 
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-        self.infos = {agent: {} for agent in self.possible_agents}
+        self.infos = {'episode_finished': False}
 
         self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
         self.truncations = {agent: False for agent in self.possible_agents}
@@ -397,7 +397,7 @@ class GMEnv(ptz.AECEnv):
             self.rewards = {agent: 0 for agent in self.possible_agents}
             
         observations = {agent: self.observe(agent) for agent in self.possible_agents}
-        infos = {agent: {} for agent in self.possible_agents}
+        infos = {'episode_finished': self._agent_selector.is_last()}
         rewards = deepcopy(self.rewards)
         terminations = deepcopy(self.terminations)
         truncations = deepcopy(self.truncations)
@@ -423,7 +423,7 @@ class GMEnv(ptz.AECEnv):
             self.rewards = {agent: 0 for agent in self.possible_agents}
 
             self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-            self.infos = {agent: {} for agent in self.possible_agents}
+            self.infos = {'episode_finished': False}
 
             self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
             self.truncations = {agent: self.episode >= self.n_episodes for agent in self.possible_agents}
