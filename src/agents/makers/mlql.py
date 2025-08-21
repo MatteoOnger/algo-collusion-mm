@@ -37,10 +37,10 @@ class MakerMLQL(Agent):
         Current number of steps done.
     """
 
-    scheduler = {
-        'constant': lambda eps_init, dr, t: eps_init,
-        'exponential': lambda eps_init, dr, t: eps_init * np.e**(-t * dr),
-        'linear': lambda eps_init, dr, t: eps_init - (t * dr)
+    _scheduler = {
+        'constant': lambda eps, dr, t: eps,
+        'exponential': lambda eps, dr, t: eps * np.e**(-t * dr),
+        'linear': lambda eps, dr, t: eps - (t * dr)
     }
 
 
@@ -96,7 +96,7 @@ class MakerMLQL(Agent):
         self.gamma = gamma
         self.epsilon_init = epsilon_init
         self.decay_rate = decay_rate
-        self.epsilon_scheduler = MakerMLQL.scheduler[epsilon_scheduler]
+        self.epsilon_scheduler = epsilon_scheduler
         self.q_init = q_init
         self.ticksize = ticksize
         self.low = low
@@ -104,9 +104,10 @@ class MakerMLQL(Agent):
         self.seed = seed
 
         self._rng = np.random.default_rng(seed)
+        self._scheduler = MakerMLQL._scheduler[epsilon_scheduler]
 
         self.t = 0
-        self.epsilon = self.epsilon_scheduler(self.epsilon_init, self.decay_rate, self.t)
+        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
 
         self.prices =  np.round(np.arange(self.low, self.high + self.ticksize, self.ticksize), decimal_places)
         self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if bid <= ask])
@@ -163,10 +164,8 @@ class MakerMLQL(Agent):
         if self.last_action is None:
             return
         
-        self.epsilon = self.epsilon_scheduler(self.epsilon_init, self.decay_rate, self.t)
-        self.Q[self.last_action] += self.alpha * (
-            reward + self.gamma * np.max(self.Q) - self.Q[self.last_action]
-        )
+        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
+        self.Q[self.last_action] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action])
 
         self.last_action = None
         return
