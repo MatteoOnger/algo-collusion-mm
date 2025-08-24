@@ -24,6 +24,33 @@ def plot_cci(
         ax: plt.Axes|None = None,
     ) -> plt.Axes:
     """
+    Plot the Calvano Collusion Index (CCI) for multiple agents.
+
+    Each agent's CCI time series is plotted as a separate line. 
+    The average CCI across agents is also included as a dashed red line.
+
+    Parameters
+    ----------
+    agents : list of str
+        Names of the agents, used as labels in the legend.
+    cci : np.ndarray
+        Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
+    episodes_per_window : int
+        Number of episodes grouped in each window on the x-axis.
+    ax : matplotlib.axes.Axes, default=None
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the plot.
+    
+    See Also
+    --------
+    - Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020).  
+    Artificial intelligence, algorithmic pricing, and collusion.  
+    *American Economic Review, 110*(10), 3267–3297.  
+    https://doi.org/10.1257/aer.20190623
     """
     if ax is None:
         _, ax = plt.subplots()
@@ -59,6 +86,31 @@ def plot_heatmap(
         ax: plt.Axes|None = None
     ) -> plt.Axes:
     """
+    Plot a heatmap of values over bid/ask price combinations.
+
+    Parameters
+    ----------
+    ticksize : float
+        Tick size used to discretize price indexes.
+    labels : np.ndarray
+        Array of labels for the x and y axes (price ticks).
+    indexes : np.ndarray
+        Array of shape (n, 2), with bid and ask indexes for each value.
+    values : np.ndarray
+        Array of shape (n,) with values corresponding to each (ask, bid) pair.
+    title : str, default='Heatmap'
+        Title of the plot.
+    xlabel : str, default='Ask price'
+        Label for the x-axis.
+    ylabel : str, default='Bid price'
+        Label for the y-axis.
+    ax : matplotlib.axes.Axes, default=None
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the heatmap.
     """
     matrix = np.full((len(labels), len(labels)), None, dtype=np.float32)
     indexes = (np.round(indexes / ticksize, 0)).astype(int)
@@ -90,6 +142,21 @@ def plot_maker_prices(
         ax: plt.Axes|None = None
     ) -> plt.Axes:
     """
+    Plot the evolution of ask and bid prices for a single maker.
+
+    Parameters
+    ----------
+    prices : np.ndarray
+        Array of shape (n_episodes, 2) where column 0 is ask price and column 1 is bid price.
+    agent_name : str, default='Unknown'
+        Name of the agent for labeling the plot.
+    ax : matplotlib.axes.Axes, optional
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the plot.
     """
     if ax is None:
         _, ax = plt.subplots()
@@ -115,6 +182,28 @@ def plot_maker_rewards(
         ax: plt.Axes|None = None
     ) -> plt.Axes:
     """
+    Plot the reward trend of a single maker across episodes.
+
+    Optionally includes constant reference lines for Nash equilibrium
+    reward and collusion reward.
+
+    Parameters
+    ----------
+    rewards : np.ndarray
+        Array of shape (n_episodes,) with reward values per episode.
+    nash_reward : float, default=None
+        Reference value for the Nash equilibrium reward. Default is None.
+    coll_reward : float, default=None
+        Reference value for the collusion reward. Default is None.
+    agent_name : str, default='Unknown'
+        Name of the agent for labeling the plot.
+    ax : matplotlib.axes.Axes, default=None
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the plot.
     """
     if ax is None:
         _, ax = plt.subplots()
