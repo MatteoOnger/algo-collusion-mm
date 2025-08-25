@@ -2,6 +2,7 @@ import os
 import pickle
 
 from datetime import datetime
+from matplotlib.figure import Figure
 from typing import Any, List, Dict
 
 
@@ -39,23 +40,42 @@ class ExperimentStorage:
         return
 
 
-    def save_objects(self, objects: List[Any]) -> str:
+    def save_objects(self, objects: List[Any], figure: Figure|None = None, info: str|None = None) -> str:
         """
-        Save a list of Python objects into a new experiment folder.
+        Save a list of Python objects, an optional figure, and optional text 
+        information into a newly created experiment folder.
+
+        Each object is serialized with pickle, figures are saved as PNG, 
+        and info is stored as a text file.
 
         Parameters
         ----------
         objects : list of Any
-            List of objects to save. Each object may have a `name` attribute.
-            If not, the Python object ID will be used as filename.
-
+            List of Python objects to be saved. Each object may define a 
+            `name` attribute, which is used as filename. If not provided, 
+            the object's Python ID is used instead.
+        figure : matplotlib.figure.Figure, optional
+            If given, the figure will be saved as `PLOT.png` inside the 
+            experiment folder. Default is None.
+        info : str, optional
+            If given, the string is written to a text file named `INFO.txt` 
+            inside the experiment folder. Default is None.
+        
         Returns
         -------
         : str
             Path to the experiment folder where objects were saved.
+
+        Notes
+        -----
+        - Lambda functions or other unserializable attributes inside objects 
+        are automatically set to None before pickling.
+        - Each call creates a new experiment folder, ensuring results do not 
+        overwrite previous experiments.
         """
         exp_dir = self._create_experiment_dir()
 
+        # Save objects
         for obj in objects:
             for attr, value in obj.__dict__.items():
                 if callable(value) and getattr(value, '__name__', '') == '<lambda>':
@@ -66,6 +86,17 @@ class ExperimentStorage:
 
             with open(file_path, 'wb') as f:
                 pickle.dump(obj, f)
+        
+        # Save figure
+        if figure is not None:
+            file_path = os.path.join(exp_dir, 'PLOT.png')
+            figure.savefig(file_path)
+
+        # Save info as a txt file
+        if info is not None:
+            file_path = os.path.join(exp_dir, 'INFO.txt')
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(info)
         return exp_dir
 
 
