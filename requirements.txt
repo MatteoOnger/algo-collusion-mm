@@ -1,0 +1,13 @@
+# Python version
+# python=3.12
+
+# Conda packages translated to pip
+matplotlib
+numpy
+ipykernel
+ipywidgets
+seaborn
+
+# Packages originally under pip
+pettingzoo
+gymnasium
