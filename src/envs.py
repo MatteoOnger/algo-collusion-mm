@@ -4,7 +4,7 @@ import pettingzoo as ptz
 
 from copy import deepcopy
 from enum import Enum
-from pettingzoo.utils import agent_selector as AgentSelector
+from pettingzoo.utils import AgentSelector
 from typing import Callable, Dict, Literal, Tuple
 
 
