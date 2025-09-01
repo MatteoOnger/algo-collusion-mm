@@ -23,7 +23,9 @@ class GMEnv(ptz.AECEnv):
     their private signal about the asset's true value.
     
     Attributes
-    ----------      
+    ----------
+    name : str
+        Name of the environment.
     makers : list of str
         List of maker agent names.
     traders : list of str
@@ -143,6 +145,8 @@ class GMEnv(ptz.AECEnv):
         self.high = high
         self.decimal_places = decimal_places
         self.render_mode = render_mode
+
+        self.name = GMEnv.metadata['name']
 
         self.makers = [f'maker_{idx}' for idx in range(n_makers)]
         self.traders = [f'trader_{idx}' for idx in range(n_traders)]
