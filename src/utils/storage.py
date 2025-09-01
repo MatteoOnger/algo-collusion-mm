@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 
@@ -40,13 +41,13 @@ class ExperimentStorage:
         return
 
 
-    def save_objects(self, objects: List[Any], figure: Figure|None = None, info: str|None = None) -> str:
+    def save_objects(self, objects: List[Any], figure: Figure|None = None, info: str|dict|None = None) -> str:
         """
-        Save a list of Python objects, an optional figure, and optional text 
-        information into a newly created experiment folder.
+        Save a list of Python objects, an optional figure, and optional metadata 
+        (string or JSON) into a newly created experiment folder.
 
         Each object is serialized with pickle, figures are saved as PNG, 
-        and info is stored as a text file.
+        and info is stored as a text or JSON file.
 
         Parameters
         ----------
@@ -54,24 +55,23 @@ class ExperimentStorage:
             List of Python objects to be saved. Each object may define a 
             `name` attribute, which is used as filename. If not provided, 
             the object's Python ID is used instead.
-        figure : matplotlib.figure.Figure, optional
+        figure : matplotlib.figure.Figure, defualt=None
             If given, the figure will be saved as `PLOT.png` inside the 
-            experiment folder. Default is None.
-        info : str, optional
-            If given, the string is written to a text file named `INFO.txt` 
-            inside the experiment folder. Default is None.
-        
+            experiment folder.
+        info : str or dict, default=None
+            If string, it is written to a text file named `INFO.txt`.  
+            If dict, it is written to a JSON file named `INFO.json`.  
+                
         Returns
         -------
         : str
             Path to the experiment folder where objects were saved.
+        
 
-        Notes
-        -----
-        - Lambda functions or other unserializable attributes inside objects 
-        are automatically set to None before pickling.
-        - Each call creates a new experiment folder, ensuring results do not 
-        overwrite previous experiments.
+        Raises
+        ------
+        TypeError
+            If `info` is not a string or a dictionary.
         """
         exp_dir = self._create_experiment_dir()
 
@@ -92,11 +92,18 @@ class ExperimentStorage:
             file_path = os.path.join(exp_dir, 'PLOT.png')
             figure.savefig(file_path)
 
-        # Save info as a txt file
+        # Save info as txt or json
         if info is not None:
-            file_path = os.path.join(exp_dir, 'INFO.txt')
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(info)
+            if isinstance(info, str):
+                file_path = os.path.join(exp_dir, 'INFO.txt')
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(info)
+            elif isinstance(info, dict):
+                file_path = os.path.join(exp_dir, 'INFO.json')
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(info, f, indent=4, ensure_ascii=False)
+            else:
+                raise TypeError('`info` must be either a string or a dict (JSON)')
         return exp_dir
 
 
