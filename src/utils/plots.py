@@ -281,5 +281,6 @@ def plot_makers_comb_actions(
 
     ax.set_xlabel(agent_1_name.capitalize())
     ax.set_ylabel(agnet_2_name.capitalize())
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
     ax.set_title('Actions Heatmap per Pair of Market Makers')
     return
