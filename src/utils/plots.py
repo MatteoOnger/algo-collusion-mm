@@ -18,7 +18,7 @@ Number of decimal places to display for numeric values.
 
 
 def plot_cci(
-        agents: List[str],
+        agents_name: List[str],
         cci: np.ndarray,
         episodes_per_window: int,
         ax: plt.Axes|None = None,
@@ -31,12 +31,12 @@ def plot_cci(
 
     Parameters
     ----------
-    agents : list of str
+    agents_name : list of str
         Names of the agents, used as labels in the legend.
     cci : np.ndarray
         Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
     episodes_per_window : int
-        Number of episodes grouped in each window on the x-axis.
+        Number of episodes grouped in each window.
     ax : matplotlib.axes.Axes, default=None
         Axis on which to plot. If None, a new axis is created.
 
@@ -60,7 +60,7 @@ def plot_cci(
     cmap = plt.get_cmap("tab10")
     colors = [cmap(i % 10) for i in range(cci.shape[0])]
 
-    for agent, series, color in zip(agents, cci, colors):
+    for agent, series, color in zip(agents_name, cci, colors):
         ax.plot(x, series, label=agent.capitalize(), color=color, marker='*')
 
     avg_cci = cci.mean(axis=0)
@@ -75,14 +75,12 @@ def plot_cci(
     return ax
 
 
-def plot_heatmap(
+def plot_maker_heatmap(
         ticksize: float,
         labels: np.ndarray,
         indexes: np.ndarray,
         values: np.ndarray,
         title: str = 'Heatmap',
-        xlabel: str = 'Ask price',
-        ylabel: str = 'Bid price',
         ax: plt.Axes|None = None
     ) -> plt.Axes:
     """
@@ -100,10 +98,6 @@ def plot_heatmap(
         Array of shape (n,) with values corresponding to each (ask, bid) pair.
     title : str, default='Heatmap'
         Title of the plot.
-    xlabel : str, default='Ask price'
-        Label for the x-axis.
-    ylabel : str, default='Bid price'
-        Label for the y-axis.
     ax : matplotlib.axes.Axes, default=None
         Axis on which to plot. If None, a new axis is created.
 
@@ -130,14 +124,14 @@ def plot_heatmap(
         ax = ax
     )
     
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_xlabel('Ask Price')
+    ax.set_ylabel('Bid Price')
     ax.set_title(title)
     return ax
 
 
-def plot_maker_prices(
-        prices: np.ndarray,
+def plot_maker_actions(
+        actions: np.ndarray,
         agent_name: str = 'Unknown',
         ax: plt.Axes|None = None
     ) -> plt.Axes:
@@ -146,7 +140,7 @@ def plot_maker_prices(
 
     Parameters
     ----------
-    prices : np.ndarray
+    actions : np.ndarray
         Array of shape (n_episodes, 2) where column 0 is ask price and column 1 is bid price.
     agent_name : str, default='Unknown'
         Name of the agent for labeling the plot.
@@ -161,10 +155,10 @@ def plot_maker_prices(
     if ax is None:
         _, ax = plt.subplots()
 
-    x = np.arange(len(prices))
+    x = np.arange(len(actions))
 
-    ax.plot(x, prices[:, 0], label='Ask', color='red', alpha=0.6, marker='*')
-    ax.plot(x, prices[:, 1], label='Bid', color='green', alpha=0.5, marker='*')
+    ax.plot(x, actions[:, 0], label='Ask', color='red', alpha=0.6, marker='*')
+    ax.plot(x, actions[:, 1], label='Bid', color='green', alpha=0.5, marker='*')
 
     ax.set_xlabel('Episode')
     ax.set_ylabel('Price')
@@ -225,3 +219,67 @@ def plot_maker_rewards(
     ax.legend()
     ax.grid(True)
     return ax
+
+
+def plot_makers_comb_actions(
+        ticksize: float,
+        labels: np.ndarray,
+        actions_m1: np.ndarray,
+        actions_m2: np.ndarray,
+        agent_1_name: str = 'First Maker',
+        agnet_2_name: str = 'Second Maker',
+        ax: plt.Axes|None = None
+    ) -> plt.Axes:
+    """
+    Plot the joint distribution of actions taken by two market makers.
+
+    Parameters
+    ----------
+    ticksize : float
+        Tick size used to discretize price indexes.
+    labels : np.ndarray
+        Array of labels for tick values used as axis ticks in the heatmap.
+    actions_m1 : np.ndarray
+        Array of shape (n_episodes, 2) containing ask and bid prices of the first maker.
+    actions_m2 : np.ndarray
+        Array of shape (n_episodes, 2) containing ask and bid prices of the second maker.
+    agent_1_name : str, default='First Maker'
+        Name of the first agent for axis labeling.
+    agnet_2_name : str, default='Second Maker'
+        Name of the second agent for axis labeling.
+    ax : matplotlib.axes.Axes, optional
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axis containing the heatmap of action combinations.
+    """
+    prices = np.concat([actions_m1, actions_m2], axis=1)
+    unique_prices, freqs = np.unique(prices, return_counts=True, axis=0)
+
+    indexes = (np.round(unique_prices / ticksize, 0)).astype(int)
+    index_m1 = ((indexes[:, 0] * (indexes[:, 0] + 1) / 2) + indexes[:, 1]).astype(int)
+    index_m2 = ((indexes[:, 2] * (indexes[:, 2] + 1) / 2) + indexes[:, 3]).astype(int)
+
+    matrix = np.full((len(labels), len(labels)), 0, dtype=np.int32)
+    matrix[index_m1, index_m2] = freqs
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    sns.heatmap(
+        matrix,
+        annot = True,
+        fmt = 'd',
+        cmap = 'viridis',
+        cbar = True,
+        xticklabels = labels,
+        yticklabels = labels,
+        ax = ax
+    )
+
+    ax.set_xlabel(agent_1_name.capitalize())
+    ax.set_ylabel(agnet_2_name.capitalize())
+    ax.set_title('Actions Heatmap per Pair of Market Makers')
+    return
