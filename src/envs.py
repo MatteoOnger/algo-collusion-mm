@@ -1,8 +1,8 @@
+import functools
 import gymnasium as gym
 import numpy as np
 import pettingzoo as ptz
 
-from copy import deepcopy
 from enum import Enum
 from pettingzoo.utils import AgentSelector
 from typing import Callable, Dict, Literal, Tuple
@@ -26,6 +26,12 @@ class GMEnv(ptz.AECEnv):
     ----------
     name : str
         Name of the environment.
+    n_makers : int
+        Total number of market makers (informed + uninformed).
+    makers_u : list of str
+        List of uninformed maker agent names.
+    makers_i : list of str
+        List of informed maker agent names.
     makers : list of str
         List of maker agent names.
     traders : list of str
@@ -72,7 +78,7 @@ class GMEnv(ptz.AECEnv):
     """
 
     metadata = {
-        'name': 'Glosten-Milgrom_environment',
+        'name': 'glosten-milgrom_environment',
         'render_modes': ['ascii', 'human']
     }
 
@@ -81,8 +87,9 @@ class GMEnv(ptz.AECEnv):
         """
         Agent types in the GM environment.
         """
-        MAKER = 0
-        TRADER = 1
+        MAKER_U = 0
+        MAKER_I = 1
+        TRADER = 2
 
 
     class TraderAction(Enum):
@@ -98,7 +105,8 @@ class GMEnv(ptz.AECEnv):
         self,
         generate_vt: Callable[[], float],
         n_episodes: int,
-        n_makers: int,
+        n_makers_u: int,
+        n_makers_i: int,
         n_traders: int,
         low: float = 0.0,
         high: float = 1.0,
@@ -112,8 +120,10 @@ class GMEnv(ptz.AECEnv):
             Function that returns the true value for the asset at the beginning of each episode.
         n_episodes : int
             Total number of episodes to simulate.
-        n_makers : int
-            Number of market makers.
+        n_makers_u : int
+            Number of uninformed market makers.
+        n_makers_i : int
+            Number of informed market makers.
         n_traders : int
             Number of traders.
         low : float, default=0.0
@@ -128,18 +138,21 @@ class GMEnv(ptz.AECEnv):
         Raises
         ------
         ValueError
-            If the number of makers or traders is smaller than one.
+            If the number of makers, traders or episodes is smaller than one.
         """
         super().__init__()
 
-        if n_makers < 1:
+        if n_makers_i + n_makers_u < 1:
             raise ValueError('n_makers < 1')
         if n_traders < 1:
             raise ValueError('n_traders < 1')
+        if n_episodes < 1:
+            raise ValueError('n_episodes < 1')
 
         self.generate_vt = generate_vt
         self.n_episodes = n_episodes
-        self.n_makers = n_makers
+        self.n_makers_u = n_makers_u
+        self.n_makers_i = n_makers_i
         self.n_traders = n_traders
         self.low = low
         self.high = high
@@ -147,14 +160,55 @@ class GMEnv(ptz.AECEnv):
         self.render_mode = render_mode
 
         self.name = GMEnv.metadata['name']
+        self.n_makers = n_makers_u + n_makers_i
 
-        self.makers = [f'maker_{idx}' for idx in range(n_makers)]
+        self.makers_u = [f'maker_u_{idx}' for idx in range(n_makers_u)]
+        self.makers_i = [f'maker_i_{idx}' for idx in range(n_makers_i)]
+
+        self.makers = self.makers_u + self.makers_i
         self.traders = [f'trader_{idx}' for idx in range(n_traders)]
 
         self.possible_agents = self.makers + self.traders
         self.agent_name_mapping = {agent:idx for idx, agent in enumerate(self.possible_agents)}
-        self.agents_type = [GMEnv.AgentType.MAKER] * n_makers + [GMEnv.AgentType.TRADER] * n_traders
+        self.agents_type = [GMEnv.AgentType.MAKER_U] * n_makers_u + [GMEnv.AgentType.MAKER_I] * n_makers_i + [GMEnv.AgentType.TRADER] * n_traders
         return
+
+
+    @staticmethod
+    def _partial_reset(func: Callable) -> Callable:
+        """
+        Decorator to reset certain environment variables at the start of each new episode.
+        Resets maker prices, min/max prices, trader action, observations, and infos
+        if the episode has finished.
+
+        Parameters
+        ----------
+        func : Callable
+            The step function to be wrapped.
+        
+        Returns
+        -------
+        : Callable
+            The wrapped step function with partial reset functionality.
+        """
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs) -> None:
+            """
+            """
+            result = func(self, *args, **kwargs)
+
+            if result[4]['episode_finished']:
+                self._ask_prices = np.zeros(self.n_makers, dtype=np.float64)
+                self._bid_prices = np.zeros(self.n_makers, dtype=np.float64)
+        
+                self.min_ask_price = self.high
+                self.max_bid_price = self.low
+                self.trader_action = None
+
+                self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
+                self.infos = {'episode_finished': False} | {agent: {} for agent in self.possible_agents}
+            return result
+        return wrapper
 
 
     def action_space(self, agent: str, seed: int|None = None) -> gym.Space:
@@ -240,6 +294,33 @@ class GMEnv(ptz.AECEnv):
                 'max_bid_price': self.max_bid_price
             }
         return observation
+    
+
+    def inform(self, agent: str) -> Dict:
+        """
+        Returns additional information for the given agent.
+        Informed agents receive the true value, minimum ask, and maximum bid.
+        Uninformed agents receive an empty dictionary.
+
+        Parameters
+        ----------
+        agent : str
+            Name of the agent.
+        
+        Returns
+        -------
+        : dict
+            Additional information for the agent.
+        """
+        if self._ismaker(agent) and self._isinformed(agent):
+            info = {
+                'true_value': self.true_value,
+                'min_ask_price': self.min_ask_price,
+                'max_bid_price': self.max_bid_price,
+            }
+        else:
+            info = {}
+        return info
 
 
     def state(self) -> Dict:
@@ -313,13 +394,14 @@ class GMEnv(ptz.AECEnv):
         self._cumulative_rewards = self.cumulative_rewards
 
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-        self.infos = {'episode_finished': False}
+        self.infos = {'episode_finished': False} | {agent: {} for agent in self.possible_agents}
 
         self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
         self.truncations = {agent: False for agent in self.possible_agents}
         return self.observations, self.infos
 
 
+    @_partial_reset
     def step(self, action: 'Dict[str, GMEnv.TraderAction|int|float|np.ndarray]') -> Tuple[Dict, Dict, Dict, Dict, Dict]:
         """
         Executes a step in the environment with the provided action.
@@ -399,40 +481,28 @@ class GMEnv(ptz.AECEnv):
                 self.cumulative_rewards[agent] = round(self.cumulative_rewards[agent] + self.rewards[agent], self.decimal_places)
         else:
             self.rewards = {agent: 0 for agent in self.possible_agents}
-            
-        observations = {agent: self.observe(agent) for agent in self.possible_agents}
-        infos = {'episode_finished': self._agent_selector.is_last()}
-        rewards = deepcopy(self.rewards)
-        terminations = deepcopy(self.terminations)
-        truncations = deepcopy(self.truncations)
+        
+        # Update observations
+        self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
 
         # Render the environment
         if self.render_mode == 'human':
             self.render()
 
-        # Perform a partial reset at the end of an episode
+        # Update for next episode
         if self._agent_selector.is_last():
             self.episode += 1
             #self._true_value = self.val_gen()
 
             self.agents = self.makers + [str(self._np_random.choice(self.traders))] if self.episode < self.n_episodes else []
 
-            self._ask_prices = np.zeros(self.n_makers, dtype=np.float64)
-            self._bid_prices = np.zeros(self.n_makers, dtype=np.float64)
-            
-            self.min_ask_price = self.high
-            self.max_bid_price = self.low
-            self.trader_action = None
-            
-            self.rewards = {agent: 0 for agent in self.possible_agents}
-
-            self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-            self.infos = {'episode_finished': False}
-
+            # Upadate infos, terminations and truncations
+            self.infos = {'episode_finished': True} | {agent: self.inform(agent) for agent in self.possible_agents}
             self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
             self.truncations = {agent: self.episode >= self.n_episodes for agent in self.possible_agents}
+
         self.agent_selection = self._agent_selector.next()
-        return observations, rewards, terminations, truncations, infos
+        return self.observations, self.rewards, self.terminations, self.truncations, self.infos
 
 
     def render(self) -> str|None:
@@ -519,7 +589,8 @@ class GMEnv(ptz.AECEnv):
         : bool
             True if the agent is a maker, False otherwise.
         """
-        return self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.MAKER
+        return self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.MAKER_U or \
+               self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.MAKER_I
 
 
     def _istrader(self, agent: str) -> bool:
@@ -537,6 +608,23 @@ class GMEnv(ptz.AECEnv):
             True if the agent is a trader, False otherwise.
         """
         return self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.TRADER
+
+
+    def _isinformed(self, agent: str) -> bool:
+        """
+        Checks if the given agent is informed.
+
+        Parameters
+        ----------
+        agent : str
+            Agent name.
+
+        Returns
+        -------
+        : bool
+            True if the agent is informed, False otherwise.
+        """
+        return self.agents_type[self.agent_name_mapping[agent]] == GMEnv.AgentType.MAKER_I
 
 
     def __str__(self) -> str:
