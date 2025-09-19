@@ -33,7 +33,7 @@ class GMEnv(ptz.AECEnv):
     makers_i : list of str
         List of informed maker agent names.
     makers : list of str
-        List of maker agent names.
+        List of all maker agent names.
     traders : list of str
         List of trader agent names.
     possible_agents : list of str
@@ -73,7 +73,7 @@ class GMEnv(ptz.AECEnv):
     --------
     - Glosten, L. R., & Milgrom, P. R. (1985). Bid, ask and transaction prices
     in a specialist market with heterogeneously informed traders. 
-    Journal of Financial Economics, 14(1), 71–100.
+    Journal of Financial Economics, 14(1), 71-100.
     https://doi.org/10.1016/0304-405X(85)90044-3
     """
 
