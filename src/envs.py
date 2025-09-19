@@ -483,24 +483,25 @@ class GMEnv(ptz.AECEnv):
             self.rewards = {agent: 0 for agent in self.possible_agents}
         
         # Update observations
+        # Infos, truncations and terminations will be updated onyl if the episode ends
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
 
         # Render the environment
         if self.render_mode == 'human':
             self.render()
 
-        # Update for next episode
+        # Update for next episode and upadate infos, terminations and truncations
         if self._agent_selector.is_last():
             self.episode += 1
             #self._true_value = self.val_gen()
 
             self.agents = self.makers + [str(self._np_random.choice(self.traders))] if self.episode < self.n_episodes else []
 
-            # Upadate infos, terminations and truncations
             self.infos = {'episode_finished': True} | {agent: self.inform(agent) for agent in self.possible_agents}
             self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
             self.truncations = {agent: self.episode >= self.n_episodes for agent in self.possible_agents}
 
+            # Variables reset will be handled by the decorator
         self.agent_selection = self._agent_selector.next()
         return self.observations, self.rewards, self.terminations, self.truncations, self.infos
 
