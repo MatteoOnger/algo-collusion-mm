@@ -186,6 +186,29 @@ class MakerMLQL(Agent):
 
 class MakerInformedMLQL(MakerMLQL):
     """
+    Market maker for the GM environment based on an informed memoryless Q-learning approach.
+
+    This agent is similar to the `MakerMLQL` agent, but, after each action, it updates all 
+    its Q-values using additional information from the environment provided in the `info` dictionary
+    to estimate the reward it would have received if it had taken a different action.
+    This allows the agent to learn more efficiently from each interaction with the environment.
+
+    Attributes
+    ----------
+    prices : np.ndarray
+        Discrete set of possible prices from `low` to `high` with spacing `ticksize`.
+    action_space : list of tuple of float
+        All possible (ask_price, bid_price) pairs such that `bid_price <= ask_price`.
+    n_arms : int
+        Number of actions (arms) in the action space.
+    epsilon : float
+        Current exploration rate for the epsilon-greedy policy, in the range [0, 1].
+    Q : np.ndarray
+        Current Q-values for each arm, initialized to zeros.
+    last_action : int or None
+        Index of the last chosen action in the action space.
+    t : int
+        Current number of steps done.
     """
 
     def update(self, reward: float, info: Dict) -> None:
