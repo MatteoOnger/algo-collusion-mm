@@ -71,7 +71,7 @@ class Agent(ABC):
 
     
     @abstractmethod
-    def update(self, reward: float) -> None:
+    def update(self, reward: float, info: Dict) -> None:
         """
         Update the internal state of the agent based on the received reward.
 
@@ -79,6 +79,8 @@ class Agent(ABC):
         ----------
         reward : float
             The reward assigned to the agent for the most recent action.
+        info : dict
+            Additional information from the environment.
         """
         pass
 

@@ -63,6 +63,7 @@ class MakerEXP3(Agent):
         self.ticksize = ticksize
         self.low = low
         self.high = high
+        self.decimal_places = decimal_places
         self.seed = seed
 
         self._rng = np.random.default_rng(seed)
@@ -122,7 +123,7 @@ class MakerEXP3(Agent):
         }
 
 
-    def update(self, reward: float) -> None:
+    def update(self, reward: float, info: Dict) -> None:
         if self.last_action is None:
             return
         

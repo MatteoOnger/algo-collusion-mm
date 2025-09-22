@@ -80,7 +80,7 @@ class BasicTrader(Agent):
         }
 
 
-    def update(self, reward: float) -> None:
+    def update(self, reward: float, info: Dict) -> None:
         self.history.record_reward(reward)
         return
 

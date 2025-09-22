@@ -3,6 +3,7 @@ import numpy as np
 from typing import Dict, List
 
 from ..agent import Agent
+from ...envs import GMEnv
 
 
 
@@ -101,6 +102,7 @@ class MakerMLQL(Agent):
         self.ticksize = ticksize
         self.low = low
         self.high = high
+        self.decimal_places = decimal_places
         self.seed = seed
 
         self._rng = np.random.default_rng(seed)
@@ -113,7 +115,7 @@ class MakerMLQL(Agent):
         self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if bid <= ask])
 
         self.Q = np.zeros(self.n_arms) + self.q_init
-        self.last_action = None
+        self.last_action_idx = None
         return
 
 
@@ -150,7 +152,7 @@ class MakerMLQL(Agent):
             arm_idx = self._rng.choice(best_actions)
         
         strategy = self.action_space[arm_idx]
-        self.last_action = arm_idx
+        self.last_action_idx = arm_idx
         self.t += 1
 
         self.history.record_action(strategy)
@@ -160,14 +162,14 @@ class MakerMLQL(Agent):
         }
 
 
-    def update(self, reward: float) -> None:
-        if self.last_action is None:
+    def update(self, reward: float, info: Dict) -> None:
+        if self.last_action_idx is None:
             return
         
         self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
-        self.Q[self.last_action] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action])
+        self.Q[self.last_action_idx] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action_idx])
 
-        self.last_action = None
+        self.last_action_idx = None
         self.history.record_reward(reward)
         return
 
@@ -176,6 +178,56 @@ class MakerMLQL(Agent):
         super().reset()
         self._rng = np.random.default_rng(self.seed)
         self.Q = np.zeros(self.n_arms) + self.q_init
-        self.last_action = None
+        self.last_action_idx = None
         self.t = 0
+        return
+
+
+
+class MakerInformedMLQL(MakerMLQL):
+    """
+    """
+
+    def update(self, reward: float, info: Dict) -> None:
+        if self.last_action_idx is None:
+            return
+
+        true_value = info['true_value']
+        min_ask_price = info['min_ask_price']
+        max_bid_price = info['max_bid_price']
+        trader_action = info['trader_action']
+        maker_reward = info['maker_reward']
+        trader_reward = info['trader_reward']
+        
+        n_selected_makers = abs(trader_reward) // abs(maker_reward) if maker_reward != 0 else 0
+
+        for idx, action in enumerate(self.action_space):
+            ask_price = action[0]
+            bid_price = action[1]
+
+            ask_reward = ask_price - true_value
+            bid_reward = true_value - bid_price
+
+            if idx == self.last_action_idx:
+                rwd = reward
+            elif trader_action == GMEnv.TraderAction.PASS:
+                rwd = 0
+            elif ask_price > min_ask_price and bid_price < max_bid_price:
+                rwd = 0
+            elif ask_price < min_ask_price or bid_price > max_bid_price:
+                rwd = min(ask_reward, bid_reward)
+            else:
+                if trader_action == GMEnv.TraderAction.BUY and ask_price == min_ask_price:
+                    rwd = ask_reward / (n_selected_makers + 1 if reward == 0 else n_selected_makers)
+                elif trader_action == GMEnv.TraderAction.SELL and bid_price == max_bid_price:
+                    rwd = bid_reward / (n_selected_makers + 1 if reward == 0 else n_selected_makers)
+                else:
+                    rwd = 0
+            
+            rwd = round(rwd, self.decimal_places)
+            self.Q[idx] += self.alpha * (rwd + self.gamma * np.max(self.Q) - self.Q[idx])
+
+        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
+        self.history.record_reward(reward)
+        self.last_action_idx = None
         return
