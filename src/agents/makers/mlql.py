@@ -15,7 +15,7 @@ class MakerMLQL(Agent):
     but updates action values without conditioning on the history of past actions.
     In this sense, it behaves similarly to the Epsilon-Greedy algorithm, where each action
     is evaluated independently.
-    At each step it selects an action using an epsilon-greedy exploration strategy,
+    At each step it selects an action using an epsilon-greedy (or an optimistic initial value) exploration strategy,
     with the exploration rate `epsilon` decaying linearly towards `epsilon_min`.
     The value of each action is updated through temporal-difference learning with learning
     rate `alpha` and discount factor `gamma`.
@@ -126,12 +126,7 @@ class MakerMLQL(Agent):
 
     def act(self, observation: Dict) -> Dict:
         """
-        Select an ask-bid strategy using an epsilon-greedy policy.
-
-        With probability `epsilon`, the agent explores by selecting a random action
-        from the action space. Otherwise, it exploits by choosing one of the actions
-        with the highest current Q-value. After each step, `epsilon` is decayed
-        linearly towards `epsilon_min` according to the `decay_rate`.
+        Select an ask-bid strategy using an exploration policy.
 
         Parameters
         ----------
