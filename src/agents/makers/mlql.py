@@ -172,6 +172,7 @@ class MakerMLQL(Agent):
     def reset(self) -> None:
         super().reset()
         self._rng = np.random.default_rng(self.seed)
+        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, 0)
         self.Q = np.zeros(self.n_arms) + self.q_init
         self.last_action_idx = None
         self.t = 0

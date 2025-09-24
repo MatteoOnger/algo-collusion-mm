@@ -317,6 +317,7 @@ class GMEnv(ptz.AECEnv):
         if self._ismaker(agent) and self._isinformed(agent):
             info = {
                 'true_value': self.true_value,
+                'actions': np.array(list(zip(self._ask_prices, self._bid_prices)), dtype=np.float64),
                 'min_ask_price': self.min_ask_price if self.n_makers > 1 else self.high,
                 'max_bid_price': self.max_bid_price if self.n_makers > 1 else self.low,
                 'trader_action': self.trader_action,
