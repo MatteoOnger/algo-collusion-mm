@@ -1,41 +1,42 @@
 import numpy as np
 
-from typing import Dict, List
+from typing import Dict
 
-from ..agent import Agent
+from .maker import Maker
 from ...envs import GMEnv
 
 
 
-class MakerMLQL(Agent):
+class MakerMLQL(Maker):
     """
     Market maker for the GM environment based on a memoryless Q-learning approach.
 
     This agent maintains a Q-table over a discrete set of possible (ask, bid) strategies,
-    but updates action values without conditioning on the history of past actions.
-    In this sense, it behaves similarly to the Epsilon-Greedy algorithm, where each action
-    is evaluated independently.
-    At each step it selects an action using an epsilon-greedy (or an optimistic initial value) exploration strategy,
-    with the exploration rate `epsilon` decaying linearly towards `epsilon_min`.
-    The value of each action is updated through temporal-difference learning with learning
-    rate `alpha` and discount factor `gamma`.
-
+    but updates action values without conditioning on the history of past actions, so it is a memoryless approach.
+    In this sense, it behaves similarly to the Epsilon-Greedy algorithm, where each action is evaluated independently.
+    The exploration-exploitation trade-off is managed through an epsilon-greedy policy or using the optimistic initialization.
+    The learning rate `alpha` and the discount factor `gamma` control how quickly the agent updates its Q-values
+    based on the rewards received from the environment.
+    
     Attributes
     ----------
-    prices : np.ndarray
-        Discrete set of possible prices from `low` to `high` with spacing `ticksize`.
-    action_space : list of tuple of float
-        All possible (ask_price, bid_price) pairs such that `bid_price <= ask_price`.
-    n_arms : int
-        Number of actions (arms) in the action space.
+    alpha : float, default=0.1
+        Learning rate for Q-value updates, in the range (0, 1].
+    gamma : float, default=0.9
+        Discount factor for future rewards, in the range [0, 1].
+    epsilon_scheduler : str, default='constant'
+        Name of the scheduler used to update the expolarion rate epsilon.
+        Must be one of the ones in `MakerMLQL._scheduler`.
+    epsilon_init : float, default=0.0
+        Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
+    epsilon_decay_rate : float, default=0.0
+        Decay rate applied to `epsilon` after each step.
+    q_init : float or np.ndarray, default=0.0
+        Initial values of the Q-table.
     epsilon : float
         Current exploration rate for the epsilon-greedy policy, in the range [0, 1].
     Q : np.ndarray
-        Current Q-values for each arm, initialized to zeros.
-    last_action : int or None
-        Index of the last chosen action in the action space.
-    t : int
-        Current number of steps done.
+        Current Q-values for each arm.
     """
 
     _scheduler = {
@@ -47,99 +48,79 @@ class MakerMLQL(Agent):
 
     def __init__(
         self,
-        alpha: float,
-        gamma: float,
-        epsilon_init: float = 0.0,
-        decay_rate: float = 0.0,
+        alpha: float = 0.1,
+        gamma: float = 0.9,
         epsilon_scheduler: str = 'constant',
+        epsilon_init: float = 0.0,
+        epsilon_decay_rate: float = 0.0,
         q_init: float|np.ndarray = 0.0,
-        ticksize: float = 0.05,
+        ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
-        name: str = 'maker',
+        eq: bool = True,
+        prices: np.ndarray|None = None,
+        action_space: np.ndarray|None = None,
         decimal_places: int = 2,
-        seed: int | None = None
+        name: str = 'maker_mlql',
+        seed: int|None = None
     ):
         """
         Parameters
         ----------
-        alpha : float
+        alpha : float, default=0.1
             Learning rate for Q-value updates, in the range (0, 1].
-        gamma : float
+        gamma : float, default=0.9
             Discount factor for future rewards, in the range [0, 1].
-        epsilon_init : float, default=0.0
-            Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
-        decay_rate : float, default=0.0
-            Decay rate applied to `epsilon` after each step.
         epsilon_scheduler : str, default='constant'
             Name of the scheduler used to update the expolarion rate epsilon.
+            Must be one of the ones in `MakerMLQL._scheduler`.
+        epsilon_init : float, default=0.0
+            Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
+        epsilon_decay_rate : float, default=0.0
+            Decay rate applied to `epsilon` after each step.
         q_init : float or np.ndarray, default=0.0
             Initial values of the Q-table.
             - If an integer, all entries in the Q-table are initialized to this value.
             - If an array-like object, it must have the same shape as the Q-table, and each entry
             will be used to initialize the corresponding Q-value.
-        ticksize : float, default=0.05
+        ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
             Minimum price allowed.
         high : float, default=1.0
             Maximum price allowed.
-        name : str, default='maker'
-            Name assigned to the agent.
+        eq : bool, default=True
+            Allow the bid price to be equal to the ask price.
+            Not used if `action_space` is given.
+        prices : np.ndarray or None, default=None
+            Discrete set of possible prices.
+        action_space : np.ndarray or None, default=None
+            All possible (ask_price, bid_price) pairs.
         decimal_places : int, default=2
             Number of decimal places to which rewards are rounded.
+        name : str, default='maker'
+            Name assigned to the agent.
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(name)
+        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.alpha = alpha
         self.gamma = gamma
-        self.epsilon_init = epsilon_init
-        self.decay_rate = decay_rate
         self.epsilon_scheduler = epsilon_scheduler
+        self.epsilon_init = epsilon_init
+        self.epsilon_decay_rate = epsilon_decay_rate
         self.q_init = q_init
-        self.ticksize = ticksize
-        self.low = low
-        self.high = high
-        self.decimal_places = decimal_places
-        self.seed = seed
 
-        self._rng = np.random.default_rng(seed)
+        self._t = 0
         self._scheduler = MakerMLQL._scheduler[epsilon_scheduler]
 
-        self.t = 0
-        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
-
-        self.prices =  np.round(np.arange(self.low, self.high + self.ticksize, self.ticksize), decimal_places)
-        self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if bid <= ask])
-
+        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         self.Q = np.zeros(self.n_arms) + self.q_init
-        self.last_action_idx = None
         return
 
 
-    @property
-    def action_space(self) -> List:
-        return self._action_space
-
-
     def act(self, observation: Dict) -> Dict:
-        """
-        Select an ask-bid strategy using an exploration policy.
-
-        Parameters
-        ----------
-        observation : dict
-            Not used for this maker agent.
-
-        Returns
-        -------
-        action : dict
-            A dictionary containing:
-            - 'ask_price': the ask price proposed by the agent.
-            - 'bid_price': the bid price proposed by the agent.
-        """
         if self._rng.random() < self.epsilon:
             arm_idx = self._rng.integers(self.n_arms)
         else:
@@ -147,8 +128,8 @@ class MakerMLQL(Agent):
             arm_idx = self._rng.choice(best_actions)
         
         strategy = self.action_space[arm_idx]
-        self.last_action_idx = arm_idx
-        self.t += 1
+        self.last_action = arm_idx
+        self._t += 1
 
         self.history.record_action(strategy)
         return {
@@ -158,24 +139,22 @@ class MakerMLQL(Agent):
 
 
     def update(self, reward: float, info: Dict) -> None:
-        if self.last_action_idx is None:
+        if self.last_action is None:
             return
         
-        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
-        self.Q[self.last_action_idx] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action_idx])
+        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.Q[self.last_action] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action])
 
-        self.last_action_idx = None
         self.history.record_reward(reward)
+        self.last_action = None
         return
 
 
     def reset(self) -> None:
         super().reset()
-        self._rng = np.random.default_rng(self.seed)
-        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, 0)
+        self._t = 0
         self.Q = np.zeros(self.n_arms) + self.q_init
-        self.last_action_idx = None
-        self.t = 0
+        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         return
 
 
@@ -187,28 +166,27 @@ class MakerInformedMLQL(MakerMLQL):
     This agent is similar to the `MakerMLQL` agent, but, after each action, it updates all 
     its Q-values using additional information from the environment provided in the `info` dictionary
     to estimate the reward it would have received if it had taken a different action.
-    This allows the agent to learn more efficiently from each interaction with the environment.
-
-    Attributes
-    ----------
-    prices : np.ndarray
-        Discrete set of possible prices from `low` to `high` with spacing `ticksize`.
-    action_space : list of tuple of float
-        All possible (ask_price, bid_price) pairs such that `bid_price <= ask_price`.
-    n_arms : int
-        Number of actions (arms) in the action space.
-    epsilon : float
-        Current exploration rate for the epsilon-greedy policy, in the range [0, 1].
-    Q : np.ndarray
-        Current Q-values for each arm, initialized to zeros.
-    last_action : int or None
-        Index of the last chosen action in the action space.
-    t : int
-        Current number of steps done.
     """
 
     def update(self, reward: float, info: Dict) -> None:
-        if self.last_action_idx is None:
+        """
+        Updates the agent's internal state based on the reward received
+        and additional information from the enivironment.
+
+        Parameters
+        ----------
+        reward : float
+            The reward assigned to the agent for the most recent action.
+        info : dict
+            A dictionary containing environment feedback, with keys:
+                - 'true_value': The true value of the traded asset.
+                - 'min_ask_price': The minimum ask price among all makers.
+                - 'max_bid_price': The maximum bid price among all makers.
+                - 'trader_action': The action taken by the trader.
+                - 'maker_reward': The reward assigned to makers.
+                - 'trader_reward': The reward assigned to the trader.
+        """
+        if self.last_action is None:
             return
 
         true_value = info['true_value']
@@ -227,7 +205,7 @@ class MakerInformedMLQL(MakerMLQL):
             ask_reward = ask_price - true_value
             bid_reward = true_value - bid_price
 
-            if idx == self.last_action_idx:
+            if idx == self.last_action:
                 rwd = reward
             elif trader_action == GMEnv.TraderAction.PASS:
                 rwd = 0
@@ -246,7 +224,7 @@ class MakerInformedMLQL(MakerMLQL):
             rwd = round(rwd, self.decimal_places)
             self.Q[idx] += self.alpha * (rwd + self.gamma * np.max(self.Q) - self.Q[idx])
 
-        self.epsilon = self._scheduler(self.epsilon_init, self.decay_rate, self.t)
+        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         self.history.record_reward(reward)
-        self.last_action_idx = None
+        self.last_action = None
         return

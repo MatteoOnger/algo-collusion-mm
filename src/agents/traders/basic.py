@@ -1,46 +1,29 @@
 import numpy as np
 
-from typing import Dict, List
+from typing import Dict
 
-from ..agent import Agent
+from .trader import Trader
 from ...envs import GMEnv
 
 
 
-class BasicTrader(Agent):
+class BasicTrader(Trader):
     """
     Trader agent for the GM environment.
 
     The trader observes the current market state and chooses between three actions:
-    buy, sell or pass. The decision rule is based on the comparison between how 
-    favorable the market is for buying vs selling vs passing, relative to the true value of the asset.
-
-    Attributes
-    ----------
-    action_space : list
-        All possible available actions.
-    n_arms : int
-        Number of actions (arms) in the action space.
+    buy, sell or pass. The decision rule is based on the comparison between how favorable
+    the market is for buying vs selling vs passing, relative to the true value of the asset.
     """
 
-    def __init__(self, name: str = 'trader', seed: int | None = None):
-        """
-        Parameters
-        ----------
-        name : str, default='trader'
-            Unique identifier for the agent.
-        seed : int or None, default=None
-            Seed for the internal random generator.
-        """
-        super().__init__(name)
-
-        self._rng = np.random.default_rng(seed)
+    def __init__(self, name: str = 'basic_trader', seed: int|None = None):
+        super().__init__(name, seed)
         self._action_space = np.array([GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL, GMEnv.TraderAction.PASS])        
         return
 
 
     @property
-    def action_space(self) -> List:
+    def action_space(self) -> np.ndarray:
         return self._action_space
 
 
@@ -78,13 +61,3 @@ class BasicTrader(Agent):
         return {
             'operation': action 
         }
-
-
-    def update(self, reward: float, info: Dict) -> None:
-        self.history.record_reward(reward)
-        return
-
-
-    def reset(self) -> None:
-        super().reset()
-        return
