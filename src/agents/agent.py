@@ -35,6 +35,9 @@ class Agent(ABC):
         self._seed = seed
         self._rng = np.random.default_rng(self._seed)
 
+        if self._seed is None:
+            self._seed = self._rng.bit_generator.seed_seq.entropy
+
         self.name = name
         self.history = Agent.History()
         return
