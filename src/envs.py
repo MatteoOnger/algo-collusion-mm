@@ -312,8 +312,6 @@ class GMEnv(ptz.AECEnv):
         : dict
             Additional information for the agent.
         """
-        agent_idx = self.agent_name_mapping[agent]
-
         if self._ismaker(agent) and self._isinformed(agent):
             info = {
                 'true_value': self.true_value,

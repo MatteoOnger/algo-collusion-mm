@@ -13,11 +13,6 @@ class Maker(Agent):
 
     Attributes
     ----------
-    last_action : tuple or int or None
-        Last chosen action.
-        It is None if no action has been taken yet, if it is an integer, it represents the index 
-        of the action in the action space, otherwise it is a tuple containing the index of the action
-        and additional information (e.g., the probability of selection).
     ticksize : float, default=0.02
         Minimum increment for prices in the action space.
     low : float, default=0.0
@@ -30,6 +25,11 @@ class Maker(Agent):
         All possible (ask_price, bid_price) pairs.
     decimal_places : int, default=2
         Number of decimal places to which rewards and actions are rounded.
+    last_action : tuple or int or None
+        Last chosen action.
+        It is None if no action has been taken yet, if it is an integer, it represents the index 
+        of the action in the action space, otherwise it is a tuple containing the index of the action
+        and additional information (e.g., the probability of selection).
     
     Notes
     -----

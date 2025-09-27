@@ -11,7 +11,7 @@ class MakerInformedQL(Maker):
     Market maker for the GM environment based on Q-learning.
 
     The agent's state is defined by the actions (ask and bid prices) taken by
-all market makers in the previous round. Each unique state is identified by a
+    all market makers in the previous round. Each unique state is identified by a
     unique ID. This agent is considered "informed" because its decision-making
     process is directly influenced by the past actions of other market participants.
 

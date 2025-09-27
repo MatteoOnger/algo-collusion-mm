@@ -18,11 +18,11 @@ Number of decimal places to display for numeric values.
 
 
 def plot_cci(
-        agents_name: List[str],
-        cci: np.ndarray,
-        episodes_per_window: int,
-        ax: plt.Axes|None = None,
-    ) -> plt.Axes:
+    agents_name: List[str],
+    cci: np.ndarray,
+    episodes_per_window: int,
+    ax: plt.Axes|None = None,
+) -> plt.Axes:
     """
     Plot the Calvano Collusion Index (CCI) for multiple agents.
 
@@ -58,10 +58,9 @@ def plot_cci(
     x = (np.arange(cci.shape[1]) + 1 ) * episodes_per_window
 
     cmap = plt.get_cmap("tab10")
-    colors = [cmap(i % 10) for i in range(cci.shape[0])]
 
-    for agent, series, color in zip(agents_name, cci, colors):
-        ax.plot(x, series, label=agent.capitalize(), color=color, marker='*')
+    for idx, (agent, series) in enumerate(zip(agents_name, cci)):
+        ax.plot(x, series, label=agent.capitalize(), color=cmap(idx % 10), marker='*')
 
     avg_cci = cci.mean(axis=0)
     ax.plot(x, avg_cci, label='Average', color='red', ls='--')
@@ -76,13 +75,13 @@ def plot_cci(
 
 
 def plot_maker_heatmap(
-        ticksize: float,
-        labels: np.ndarray,
-        indexes: np.ndarray,
-        values: np.ndarray,
-        title: str = 'Heatmap',
-        ax: plt.Axes|None = None
-    ) -> plt.Axes:
+    ticksize: float,
+    labels: np.ndarray,
+    indexes: np.ndarray,
+    values: np.ndarray,
+    title: str = 'Heatmap',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
     """
     Plot a heatmap of values over bid/ask price combinations.
 
@@ -131,10 +130,10 @@ def plot_maker_heatmap(
 
 
 def plot_maker_actions(
-        actions: np.ndarray,
-        agent_name: str = 'Unknown',
-        ax: plt.Axes|None = None
-    ) -> plt.Axes:
+    actions: np.ndarray,
+    agent_name: str = 'Unknown',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
     """
     Plot the evolution of ask and bid prices for a single maker.
 
@@ -169,12 +168,12 @@ def plot_maker_actions(
 
 
 def plot_maker_rewards(
-        rewards: np.ndarray,
-        nash_reward: float|None = None,
-        coll_reward: float|None = None,
-        agent_name: str = 'Unknown',
-        ax: plt.Axes|None = None
-    ) -> plt.Axes:
+    rewards: np.ndarray,
+    nash_reward: float|None = None,
+    coll_reward: float|None = None,
+    agent_name: str = 'Unknown',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
     """
     Plot the reward trend of a single maker across episodes.
 
@@ -221,15 +220,83 @@ def plot_maker_rewards(
     return ax
 
 
+def plot_makers_best_actions(
+    true_value: float,
+    actions: np.ndarray,
+    agents_name: List[str],
+    ax: plt.Axes|None = None
+) -> plt.Axes:
+    """
+    Plot the best price (closest to the true value) for each maker at each episode.
+    Bid and ask prices are shown with different markers, and each agent has a different color.
+
+    Parameters
+    ----------
+    actions : np.ndarray
+       Array of shape (n_agents, n_episodes, 2) containing ask and bid prices for each agent and episode.
+    true_value : float
+        The true value of the asset to compare prices against.
+    agents_name : list of str, optional
+        Names of the agents for labeling.
+    ax : matplotlib.axes.Axes, optional
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the plot.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+    
+    n_agents = actions.shape[0]
+    n_episodes = actions.shape[1]
+
+    x = np.arange(n_episodes)
+
+    cmap = plt.get_cmap("tab10")
+    markers = {'ask': 'o', 'bid': '*'}
+
+    for idx, (action, name) in enumerate(zip(actions, agents_name)):
+        color = cmap(idx % 10)
+
+        ask_prices = action[:, 0]
+        bid_prices = action[:, 1]
+
+        best_is_ask = (true_value - ask_prices) >= (bid_prices - true_value)
+        best_is_bid = (true_value - ask_prices) <= (bid_prices - true_value)
+
+        ax.scatter(x[best_is_ask], ask_prices[best_is_ask], label=f'{name.capitalize()} - Ask', color=color, marker=markers['ask'], alpha=1.0)
+        ax.scatter(x[best_is_bid], bid_prices[best_is_bid], label=f'{name.capitalize()} - Bid', color=color, marker=markers['bid'], alpha=1.0)
+
+    min_ask_prices = np.min(actions[:, :, 0], axis=0)
+    max_bid_prices = np.max(actions[:, :, 1], axis=0)
+
+    best_is_ask = (true_value - min_ask_prices) >= (max_bid_prices - true_value)
+    best_is_bid = (true_value - min_ask_prices) <= (max_bid_prices - true_value)
+
+    ax.scatter(x[best_is_ask], min_ask_prices[best_is_ask], s=200, facecolors='none', edgecolors='red')
+    ax.scatter(x[best_is_bid], max_bid_prices[best_is_bid], s=200, facecolors='none', edgecolors='red')
+
+    ax.axhline(true_value, color='black', ls=':', label='True Value')
+    ax.set_xlabel('Episode')
+    ax.set_ylabel('Price')
+    ax.set_title('Best Price per Maker vs True Value')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=n_agents+1)
+    ax.grid(True)
+    return ax
+
+
 def plot_makers_comb_actions(
-        ticksize: float,
-        labels: np.ndarray,
-        actions_m1: np.ndarray,
-        actions_m2: np.ndarray,
-        agent_1_name: str = 'First Maker',
-        agnet_2_name: str = 'Second Maker',
-        ax: plt.Axes|None = None
-    ) -> plt.Axes:
+    ticksize: float,
+    labels: np.ndarray,
+    actions_m1: np.ndarray,
+    actions_m2: np.ndarray,
+    title: str = 'Heatmap',
+    agent_1_name: str = 'First Maker',
+    agnet_2_name: str = 'Second Maker',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
     """
     Plot the joint distribution of actions taken by two market makers.
 
@@ -243,6 +310,8 @@ def plot_makers_comb_actions(
         Array of shape (n_episodes, 2) containing ask and bid prices of the first maker.
     actions_m2 : np.ndarray
         Array of shape (n_episodes, 2) containing ask and bid prices of the second maker.
+    title : str, default='Heatmap'
+        Title of the plot.
     agent_1_name : str, default='First Maker'
         Name of the first agent for axis labeling.
     agnet_2_name : str, default='Second Maker'
@@ -282,5 +351,5 @@ def plot_makers_comb_actions(
     ax.set_xlabel(agent_1_name.capitalize())
     ax.set_ylabel(agnet_2_name.capitalize())
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
-    ax.set_title('Actions Heatmap per Pair of Market Makers')
+    ax.set_title(title)
     return
