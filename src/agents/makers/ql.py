@@ -174,7 +174,7 @@ class MakerInformedQL(Maker):
         if self.last_action is None:
             return
         
-        next_state_idx = self._action_to_idx(info['actions'])
+        next_state_idx = self._action_to_state_idx(info['actions'])
         self.Q[self.curr_state_idx, self.last_action] += self.alpha * (
             reward + self.gamma * np.max(self.Q[next_state_idx]) - self.Q[self.curr_state_idx, self.last_action]
         )
@@ -195,20 +195,19 @@ class MakerInformedQL(Maker):
         return
     
 
-    def _action_to_idx(self, actions: np.ndarray) -> int:
+    def _action_to_state_idx(self, actions: np.ndarray) -> int:
         """
         Convert a list of actions into a unique state index.
 
         Parameters
         ----------
         actions : np.ndarray
-            Array of shape (n_agents, 2) representing the (ask, bid) prices chosen by each agent.
+            Array of shape (n_agents, 2) representing the (ask, bid) prices chosen by the agents.
 
         Returns
         -------
         state_idx : int
             Unique index corresponding to the joint action of all agents.
         """
-        actions = (np.round(actions / self.ticksize, 0)).astype(int)
-        actions_idx =  ((actions[:, 0] * (actions[:, 0] + 1) / 2) + actions[:, 1]).astype(int)
+        actions_idx = self.action_to_index(actions)
         return np.sum(actions_idx * (self.n_arms ** np.arange(len(actions_idx) -1, -1, -1))) + 1
