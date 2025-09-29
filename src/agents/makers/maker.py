@@ -107,6 +107,37 @@ class Maker(Agent):
         return self._action_space
 
 
+    def price_to_index(self, prices :np.ndarray) -> np.ndarray:
+        """
+        Converts an array of price to their corresponding indices based on the price list.
+
+        This method takes a 1D numpy array of prices and maps each action to an index based on
+        its position in the predefined price list.
+
+        Parameters:
+        -----------
+        prices : np.ndarray
+            A 1D numpy array representing the prices.
+
+        Returns:
+        --------
+        : np.ndarray
+            The function returns a numpy array of indices corresponding to each price.
+
+        Raises:
+        -------
+        ValueError
+            If the input array has more than one dimensions.
+        """
+        if prices.ndim > 1:
+            raise ValueError(f'unable to process arrays of shape {prices.shape}')
+        
+        indexes = np.where(
+            np.broadcast_to(self.prices, (len(prices),) + self.prices.shape) == prices[:, None]
+        )[1]
+        return indexes
+
+
     def reset(self) -> None:
         super().reset()
         self.last_action = None
