@@ -58,13 +58,13 @@ class Agent(ABC):
         """
         Converts an array of actions to their corresponding indices based on the action space.
 
-        This method takes a 1D or 2D numpy array of actions and maps each action to an index based on
+        This method takes a numpy array of actions and maps each action to an index based on
         its position in the predefined action space.
 
         Parameters:
         -----------
         actions : np.ndarray
-            A 1D or 2D numpy array representing the actions, each row corresponds to a single action.
+            A numpy array representing the actions, last axis corresponds to a single action.
 
         Returns:
         --------
@@ -74,15 +74,17 @@ class Agent(ABC):
         Raises:
         -------
         ValueError
-            If the input array has more than two dimensions or the shape of the actions does not match the shape 
-            of the action space.
+            If the shape of the actions does not match the shape of the action space.
         """
+        shape = (-1, 1)
+
         if actions.ndim == 1:
             actions = actions[None, :]
-        
         if actions.ndim > 2:
-            raise ValueError(f'unable to process arrays of shape {actions.shape}')
-        if actions.shape[1] != self.action_space.shape[1]:
+            shape = actions.shape[:-1] + (1,)
+            actions = actions.reshape((-1, 2))
+
+        if actions.shape[-1] != self.action_space.shape[-1]:
             raise ValueError(f'shape mismatch: {actions.shape} vs {self.action_space}')
         
         indexes = np.where(
@@ -90,7 +92,7 @@ class Agent(ABC):
                 np.broadcast_to(self.action_space, (len(actions),) + self.action_space.shape) == actions[:, None, :]
             ).all(axis=2)
         )[1]
-        return indexes
+        return indexes.reshape(shape)
 
 
     def reset(self) -> None:
