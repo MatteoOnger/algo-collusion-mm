@@ -25,7 +25,7 @@ class ExperimentStorage:
         Progressive ID counter for experiments within this storage instance.
     """
 
-    def __init__(self, base_path: str) -> None:
+    def __init__(self, base_path: str, padding: int = 3) -> None:
         """
         Initialize the storage with a base directory.
 
@@ -33,10 +33,13 @@ class ExperimentStorage:
         ----------
         base_path : str
             Path to the root directory where experiments will be saved.
+        padding : int
+            Total number of digits for the experiment number, padded with leading zeros.
         """
         self.base_path = base_path
-        self.experiment_counter = 0
+        self.padding = padding
 
+        self.experiment_counter = 0
         os.makedirs(self.base_path, exist_ok=True)
         return
 
@@ -143,7 +146,7 @@ class ExperimentStorage:
         """
         self.experiment_counter += 1
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        exp_dir = os.path.join(self.base_path, f'experiment_{self.experiment_counter}_{timestamp}')
+        exp_dir = os.path.join(self.base_path, f'experiment_{self.experiment_counter:0{self.padding}}_{timestamp}')
 
         os.makedirs(exp_dir, exist_ok=True)
         return exp_dir

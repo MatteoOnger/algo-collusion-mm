@@ -312,12 +312,14 @@ class GMEnv(ptz.AECEnv):
         : dict
             Additional information for the agent.
         """
+        i = self.agent_name_mapping[agent]
+
         if self._ismaker(agent) and self._isinformed(agent):
             info = {
                 'true_value': self.true_value,
                 'actions': np.array(list(zip(self._ask_prices, self._bid_prices)), dtype=np.float64),
-                'min_ask_price': self.min_ask_price if self.n_makers > 1 else self.high,
-                'max_bid_price': self.max_bid_price if self.n_makers > 1 else self.low,
+                'min_ask_price': float(np.min(np.delete(self._ask_prices, i))) if self.n_makers > 1 else self.high,
+                'max_bid_price': float(np.max(np.delete(self._bid_prices, i))) if self.n_makers > 1 else self.low,
                 'trader_action': self.trader_action,
                 'maker_reward': next((v for v in self.rewards.values() if v != 0), None),
                 'trader_reward': next((v for v in reversed(list(self.rewards.values())) if v != 0), None)
