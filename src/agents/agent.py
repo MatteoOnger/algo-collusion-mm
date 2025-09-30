@@ -153,7 +153,7 @@ class Agent(ABC):
             return
 
 
-        def compute_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+        def compute_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> Tuple[np.ndarray, np.ndarray]:
             """
             Count the frequency of each action.
 
@@ -171,6 +171,26 @@ class Agent(ABC):
             """
             unique_actions, counts = np.unique(self.get_actions(key), axis=0, return_counts=True)
             return unique_actions, counts
+
+
+        def compute_most_common(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> Tuple[np.ndarray, int]:
+            """
+            Return the most frequent action.
+
+            Parameters
+            ----------
+            key : int, slice, or tuple of ints/slices, default=[:]
+                Index, slice, or tuple specifying episodes.
+
+            Returns
+            -------
+            most_common_action : np.ndarray
+                The most frequently occurring action.
+            frq : int
+                Frequency of the most common action.
+            """
+            unique_actions, counts = np.unique(self.get_actions(key), axis=0, return_counts=True)
+            return unique_actions[np.argmax(counts)], int(np.max(counts))
 
 
         def get_actions(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:

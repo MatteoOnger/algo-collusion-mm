@@ -1,8 +1,11 @@
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from typing import List
+from typing import Dict,List
+
+from ..agents.makers.exp3 import Maker
 
 
 
@@ -17,116 +20,119 @@ Number of decimal places to display for numeric values.
 
 
 
-def plot_cci(
-    agents_name: List[str],
+def plot_all(
+    window_size: int,
+    makers: Dict[str, Maker],
     cci: np.ndarray,
-    episodes_per_window: int,
-    ax: plt.Axes|None = None,
-) -> plt.Axes:
+    makers_belif: Dict[str, np.ndarray]|None = None,
+    nash_reward: float|None = None,
+    coll_reward: float|None = None,
+    title: str = 'Makers Summary Plots'
+) -> plt.Figure:
     """
-    Plot the Calvano Collusion Index (CCI) for multiple agents.
-
-    Each agent's CCI time series is plotted as a separate line. 
-    The average CCI across agents is also included as a dashed red line.
-
-    Parameters
-    ----------
-    agents_name : list of str
-        Names of the agents, used as labels in the legend.
-    cci : np.ndarray
-        Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
-    episodes_per_window : int
-        Number of episodes grouped in each window.
-    ax : matplotlib.axes.Axes, default=None
-        Axis on which to plot. If None, a new axis is created.
-
-    Returns
-    -------
-    : matplotlib.axes.Axes
-        The axis containing the plot.
-    
-    See Also
-    --------
-    - Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020).  
-    Artificial intelligence, algorithmic pricing, and collusion.  
-    *American Economic Review, 110*(10), 3267–3297.  
-    https://doi.org/10.1257/aer.20190623
     """
-    if ax is None:
-        _, ax = plt.subplots()
+    n_makers = len(makers)
 
-    x = (np.arange(cci.shape[1]) + 1 ) * episodes_per_window
+    # Determine how many plot rows we need
+    rows = 4  # actions, rewards, freq heatmap, CCI
+    if makers_belif is not None:
+        rows += 1  # Add Q-table row
+    if n_makers == 2:
+        rows += 1  # Add combined action plots
 
-    cmap = plt.get_cmap("tab10")
+    fig = plt.figure(figsize=(6 * n_makers, 4 * rows), constrained_layout=True)
+    fig.suptitle(title, fontsize=20)
 
-    for idx, (agent, series) in enumerate(zip(agents_name, cci)):
-        ax.plot(x, series, label=agent.capitalize(), color=cmap(idx % 10), marker='*')
+    gs = gridspec.GridSpec(rows, n_makers, figure=fig)
 
-    avg_cci = cci.mean(axis=0)
-    ax.plot(x, avg_cci, label='Average', color='red', ls='--')
+    # Per-agent plots
+    for i, maker in enumerate(makers.keys()):
+        agent = makers[maker]
 
-    ax.set_xlim(xmin=0)
-    ax.set_xlabel('Episode')
-    ax.set_ylabel('Collusion Index')
-    ax.set_title(f'Calvano Collusion Index (CCI) per Agent')
-    ax.legend()
-    ax.grid(True)
-    return ax
+        # Row 0: Action history
+        ax_actions = fig.add_subplot(gs[0, i])
+        plot_maker_actions(
+            agent.history.get_actions(),
+            agent_name = maker,
+            ax = ax_actions
+        )
 
+        # Row 1: Rewards
+        ax_rewards = fig.add_subplot(gs[1, i])
+        plot_maker_rewards(
+            agent.history.get_rewards(),
+            nash_reward = nash_reward / n_makers,
+            coll_reward = coll_reward / n_makers,
+            agent_name = maker,
+            ax = ax_rewards
+        )
 
-def plot_maker_heatmap(
-    ticksize: float,
-    labels: np.ndarray,
-    indexes: np.ndarray,
-    values: np.ndarray,
-    title: str = 'Heatmap',
-    ax: plt.Axes|None = None
-) -> plt.Axes:
-    """
-    Plot a heatmap of values over bid/ask price combinations.
+        # Row 2: Frequency heatmap
+        actions, freqs = agent.history.compute_freqs()
 
-    Parameters
-    ----------
-    ticksize : float
-        Tick size used to discretize price indexes.
-    labels : np.ndarray
-        Array of labels for the x and y axes (price ticks).
-    indexes : np.ndarray
-        Array of shape (n, 2), with bid and ask indexes for each value.
-    values : np.ndarray
-        Array of shape (n,) with values corresponding to each (ask, bid) pair.
-    title : str, default='Heatmap'
-        Title of the plot.
-    ax : matplotlib.axes.Axes, default=None
-        Axis on which to plot. If None, a new axis is created.
+        ax_freq = fig.add_subplot(gs[2, i])
+        plot_maker_heatmap(
+            indexes = agent.price_to_index(actions),
+            labels = agent.prices,
+            values = freqs,
+            title = f'Actions Absolute Frequency',
+            agent_name = maker,
+            ax = ax_freq
+        )
+        ax_freq.set_aspect('equal', adjustable='box')
 
-    Returns
-    -------
-    : matplotlib.axes.Axes
-        The axis containing the heatmap.
-    """
-    matrix = np.full((len(labels), len(labels)), None, dtype=np.float32)
-    indexes = (np.round(indexes / ticksize, 0)).astype(int)
-    matrix[indexes[:, 1], indexes[:, 0]] = values 
+        # Row 3 (optional): Q-table heatmap
+        if makers_belif is not None:
+            ax_q = fig.add_subplot(gs[3, i])
+            plot_maker_heatmap(
+                indexes = agent.price_to_index(agent.action_space),
+                labels = agent.prices,
+                values = makers_belif[maker],
+                title = f'Final Q-Table',
+                agent_name = maker,
+                ax = ax_q
+            )
+            ax_q.set_aspect('equal', adjustable='box')
 
-    if ax is None:
-        _, ax = plt.subplots()
+    # CCI row is always last row before combined actions (if present)
+    cci_row = 4 if makers_belif is not None else 3
+    ax_cci = fig.add_subplot(gs[cci_row, :])
+    plot_makers_cci(window_size, cci, makers.keys(), ax=ax_cci)
 
-    sns.heatmap(
-        matrix,
-        annot = True,
-        fmt = f'.{DECIMAL_PLACES_VALUES}f',
-        cmap = 'viridis',
-        cbar = True,
-        xticklabels = labels,
-        yticklabels = labels,
-        ax = ax
-    )
-    
-    ax.set_xlabel('Ask Price')
-    ax.set_ylabel('Bid Price')
-    ax.set_title(title)
-    return ax
+    # Optional: combined action plots (only if 2 agents)
+    if n_makers == 2:
+        comb_row = cci_row + 1
+        maker1, maker2 = list(makers.keys())[:2]
+        agent1, agent2 = list(makers.values())[:2]
+
+        # First window (initial steps)
+        ax_comb_1 = fig.add_subplot(gs[comb_row, 0])
+        plot_makers_comb_actions(
+            labels = agent1.action_space,
+            actions_idx_m1 = agent1.action_to_index(agent1.history.get_actions(slice(window_size))),
+            actions_idx_m2 = agent2.action_to_index(agent2.history.get_actions(slice(window_size))),
+            title = 'Makers Actions - First Window',
+            agent_1_name = maker1,
+            agent_2_name = maker2,
+            ax = ax_comb_1
+        )
+        ax_comb_1.set_aspect('equal', adjustable='box')
+
+        # Second window (final steps)
+        ax_comb_2 = fig.add_subplot(gs[comb_row, 1])
+        plot_makers_comb_actions(
+            labels = agent1.action_space,
+            actions_idx_m1 = agent1.action_to_index(agent1.history.get_actions(slice(-window_size, None))),
+            actions_idx_m2 = agent2.action_to_index(agent2.history.get_actions(slice(-window_size, None))),
+            title = 'Makers Actions - Last Window',
+            agent_1_name = maker1,
+            agent_2_name = maker2,
+            ax = ax_comb_2
+        )
+        ax_comb_2.set_aspect('equal', adjustable='box')
+
+    plt.close()
+    return fig
 
 
 def plot_maker_actions(
@@ -167,11 +173,71 @@ def plot_maker_actions(
     return ax
 
 
+def plot_maker_heatmap(
+    indexes: np.ndarray,
+    labels: np.ndarray,
+    values: np.ndarray,
+    title: str = 'Heatmap',
+    agent_name: str = 'unknown',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
+    """
+    Plots a heatmap of values corresponding to bid/ask price combinations.
+
+    This function visualizes a set of values on a 2D grid using a heatmap, where each cell 
+    represents a specific bid/ask price pair. The values are placed into a matrix according 
+    to their corresponding (x, y) index positions.
+
+    Parameters
+    ----------
+    indexes : np.ndarray
+        Array of index pairs indicating the (x, y) positions of each value in the heatmap matrix.
+    labels : np.ndarray
+        Array of strings or numbers (prices) used as tick labels for both the x and y axes.
+    values : np.ndarray
+        Array of values to populate in the heatmap, corresponding to each index in `indexes`.
+    title : str, default='Heatmap'
+        Title of the plot.
+    agent_name : str, default='unknown'
+        Name of the agent to include in the plot title.
+    ax : matplotlib.axes.Axes or None, optional
+        The matplotlib axis on which to draw the heatmap. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis object containing the generated heatmap.
+    """
+    is_int = np.all(np.mod(values, 1) == 0)
+
+    matrix = np.full((len(labels), len(labels)), None, dtype=np.float32)
+    matrix[indexes[:, 1], indexes[:, 0]] = values 
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    sns.heatmap(
+        matrix,
+        annot = True,
+        fmt = f'.{0 if is_int else DECIMAL_PLACES_VALUES}f',
+        cmap = 'viridis',
+        cbar = True,
+        xticklabels = labels,
+        yticklabels = labels,
+        ax = ax
+    )
+    
+    ax.set_xlabel('Ask Price')
+    ax.set_ylabel('Bid Price')
+    ax.set_title(title + ' - ' + agent_name.capitalize())
+    return ax
+
+
 def plot_maker_rewards(
     rewards: np.ndarray,
     nash_reward: float|None = None,
     coll_reward: float|None = None,
-    agent_name: str = 'Unknown',
+    agent_name: str = 'unknown',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
@@ -188,7 +254,7 @@ def plot_maker_rewards(
         Reference value for the Nash equilibrium reward. Default is None.
     coll_reward : float, default=None
         Reference value for the collusion reward. Default is None.
-    agent_name : str, default='Unknown'
+    agent_name : str, default='unknown'
         Name of the agent for labeling the plot.
     ax : matplotlib.axes.Axes, default=None
         Axis on which to plot. If None, a new axis is created.
@@ -223,7 +289,7 @@ def plot_maker_rewards(
 def plot_makers_best_actions(
     true_value: float,
     actions: np.ndarray,
-    agents_name: List[str],
+    agents_name: List[str]|None = None,
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
@@ -232,13 +298,13 @@ def plot_makers_best_actions(
 
     Parameters
     ----------
-    actions : np.ndarray
-       Array of shape (n_agents, n_episodes, 2) containing ask and bid prices for each agent and episode.
     true_value : float
         The true value of the asset to compare prices against.
-    agents_name : list of str, optional
+    actions : np.ndarray
+       Array of shape (n_agents, n_episodes, 2) containing ask and bid prices for each agent and episode.
+    agents_name : list of str or None, default=None
         Names of the agents for labeling.
-    ax : matplotlib.axes.Axes, optional
+    ax : matplotlib.axes.Axes, default=None
         Axis on which to plot. If None, a new axis is created.
 
     Returns
@@ -246,11 +312,13 @@ def plot_makers_best_actions(
     : matplotlib.axes.Axes
         The axis containing the plot.
     """
-    if ax is None:
-        _, ax = plt.subplots()
-    
     n_agents = actions.shape[0]
     n_episodes = actions.shape[1]
+
+    if ax is None:
+        _, ax = plt.subplots()
+    if agents_name is None:
+        agents_name = [f'unknown_{i}' for i in range(n_agents)]
 
     x = np.arange(n_episodes)
 
@@ -287,14 +355,70 @@ def plot_makers_best_actions(
     return ax
 
 
+def plot_makers_cci(
+    episodes_per_window: int,
+    cci: np.ndarray,
+    agents_name: List[str]|None = None,
+    ax: plt.Axes|None = None,
+) -> plt.Axes:
+    """
+    Plot the Calvano Collusion Index (CCI) for multiple makers.
+
+    Each agent's CCI time series is plotted as a separate line. 
+    The average CCI across agents is also included as a dashed red line.
+
+    Parameters
+    ----------
+    episodes_per_window : int
+        Number of episodes grouped in each window.
+    cci : np.ndarray
+        Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
+    agents_name : list of str or None
+        Names of the agents, used as labels in the legend.
+    ax : matplotlib.axes.Axes, default=None
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the plot.
+    
+    See Also
+    --------
+    - Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020).  
+    Artificial intelligence, algorithmic pricing, and collusion.  
+    *American Economic Review, 110*(10), 3267–3297.  
+    https://doi.org/10.1257/aer.20190623
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+    if agents_name is None:
+        agents_name = [f'unknown_{i}' for i in range(cci.size)]
+
+    x = (np.arange(cci.shape[1]) + 1 ) * episodes_per_window
+
+    cmap = plt.get_cmap("tab10")
+
+    for idx, (agent, series) in enumerate(zip(agents_name, cci)):
+        ax.plot(x, series, label=agent.capitalize(), color=cmap(idx % 10), marker='*')
+    
+    ax.plot(x, cci.mean(axis=0), label='Average', color='red', ls='--')
+
+    ax.set_xlabel('Episode')
+    ax.set_ylabel('Collusion Index')
+    ax.set_title(f'Calvano Collusion Index (CCI) per Agent')
+    ax.legend()
+    ax.grid(True)
+    return ax
+
+
 def plot_makers_comb_actions(
-    ticksize: float,
     labels: np.ndarray,
-    actions_m1: np.ndarray,
-    actions_m2: np.ndarray,
+    actions_idx_m1: np.ndarray,
+    actions_idx_m2: np.ndarray,
     title: str = 'Heatmap',
     agent_1_name: str = 'First Maker',
-    agnet_2_name: str = 'Second Maker',
+    agent_2_name: str = 'Second Maker',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
@@ -302,37 +426,31 @@ def plot_makers_comb_actions(
 
     Parameters
     ----------
-    ticksize : float
-        Tick size used to discretize price indexes.
     labels : np.ndarray
-        Array of labels for tick values used as axis ticks in the heatmap.
-    actions_m1 : np.ndarray
+        Array of strings or numbers used as tick labels for both the x and y axes.
+    actions_idx_m1 : np.ndarray
         Array of shape (n_episodes, 2) containing ask and bid prices of the first maker.
-    actions_m2 : np.ndarray
+    actions_idx_m2 : np.ndarray
         Array of shape (n_episodes, 2) containing ask and bid prices of the second maker.
     title : str, default='Heatmap'
         Title of the plot.
     agent_1_name : str, default='First Maker'
         Name of the first agent for axis labeling.
-    agnet_2_name : str, default='Second Maker'
+    agent_2_name : str, default='Second Maker'
         Name of the second agent for axis labeling.
     ax : matplotlib.axes.Axes, optional
         Axis on which to plot. If None, a new axis is created.
 
     Returns
     -------
-    matplotlib.axes.Axes
+    : matplotlib.axes.Axes
         The axis containing the heatmap of action combinations.
     """
-    prices = np.concat([actions_m1, actions_m2], axis=1)
-    unique_prices, freqs = np.unique(prices, return_counts=True, axis=0)
-
-    indexes = (np.round(unique_prices / ticksize, 0)).astype(int)
-    index_m1 = ((indexes[:, 0] * (indexes[:, 0] + 1) / 2) + indexes[:, 1]).astype(int)
-    index_m2 = ((indexes[:, 2] * (indexes[:, 2] + 1) / 2) + indexes[:, 3]).astype(int)
+    actions_comb = np.concat([actions_idx_m1, actions_idx_m2], axis=1)
+    unique_actions_comb, freqs = np.unique(actions_comb, return_counts=True, axis=0)
 
     matrix = np.full((len(labels), len(labels)), 0, dtype=np.int32)
-    matrix[index_m1, index_m2] = freqs
+    matrix[unique_actions_comb[:, 1], unique_actions_comb[:, 0]] = freqs
 
     if ax is None:
         _, ax = plt.subplots()
@@ -348,8 +466,8 @@ def plot_makers_comb_actions(
         ax = ax
     )
 
-    ax.set_xlabel(agent_1_name.capitalize())
-    ax.set_ylabel(agnet_2_name.capitalize())
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+    ax.set_xlabel(agent_1_name.capitalize())
+    ax.set_ylabel(agent_2_name.capitalize())
     ax.set_title(title)
     return
