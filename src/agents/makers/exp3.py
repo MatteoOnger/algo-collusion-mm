@@ -108,7 +108,7 @@ class MakerEXP3(Maker):
         epsilon : float
             The calculated optimal learning rate, bounded between 0 and 1.
         """
-        return min(1, np.sqrt((2 * np.log(n_arms)) / (n_arms * n_episodes)))
+        return min(1, np.sqrt((n_arms * np.log(n_arms)) / ((np.e - 1) * n_episodes)))
 
 
     def act(self, observation: Dict) -> Dict:

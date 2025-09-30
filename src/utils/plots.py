@@ -13,7 +13,7 @@ DECIMAL_PLACES_AXES = 2
 """
 Number of decimal places to display for axis labels.
 """
-DECIMAL_PLACES_VALUES = 4
+DECIMAL_PLACES_VALUES = 3
 """
 Number of decimal places to display for numeric values.
 """
@@ -126,7 +126,7 @@ def plot_all(
                 indexes = agent.price_to_index(agent.action_space),
                 labels = agent.prices,
                 values = makers_belif[maker],
-                title = f'Final Q-Table',
+                title = f'Final Belif',
                 agent_name = maker,
                 ax = ax_q
             )
