@@ -109,8 +109,8 @@ def plot_all(
         ax_comb_1 = fig.add_subplot(gs[comb_row, 0])
         plot_makers_comb_actions(
             labels = agent1.action_space,
-            actions_idx_m1 = agent1.action_to_index(agent1.history.get_actions(slice(window_size))),
-            actions_idx_m2 = agent2.action_to_index(agent2.history.get_actions(slice(window_size))),
+            actions_idx_m1 = agent1.action_to_index(agent1.history.get_actions(slice(window_size)))[:, None],
+            actions_idx_m2 = agent2.action_to_index(agent2.history.get_actions(slice(window_size)))[:, None],
             title = 'Makers Actions - First Window',
             agent_1_name = maker1,
             agent_2_name = maker2,
@@ -122,8 +122,8 @@ def plot_all(
         ax_comb_2 = fig.add_subplot(gs[comb_row, 1])
         plot_makers_comb_actions(
             labels = agent1.action_space,
-            actions_idx_m1 = agent1.action_to_index(agent1.history.get_actions(slice(-window_size, None))),
-            actions_idx_m2 = agent2.action_to_index(agent2.history.get_actions(slice(-window_size, None))),
+            actions_idx_m1 = agent1.action_to_index(agent1.history.get_actions(slice(-window_size, None)))[:, None],
+            actions_idx_m2 = agent2.action_to_index(agent2.history.get_actions(slice(-window_size, None)))[:, None],
             title = 'Makers Actions - Last Window',
             agent_1_name = maker1,
             agent_2_name = maker2,
