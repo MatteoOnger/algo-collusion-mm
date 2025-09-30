@@ -350,7 +350,7 @@ def plot_makers_best_actions(
     ax.set_xlabel('Episode')
     ax.set_ylabel('Price')
     ax.set_title('Best Price per Maker vs True Value')
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=n_agents+1)
+    ax.legend(loc='upper center', ncol=n_agents+1)
     ax.grid(True)
     return ax
 
