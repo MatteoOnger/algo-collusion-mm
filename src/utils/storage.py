@@ -44,7 +44,7 @@ class ExperimentStorage:
         return
 
 
-    def save_objects(self, objects: List[Any], figure: Figure|None = None, info: str|dict|None = None) -> str:
+    def save_objects(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|dict|None = None) -> str:
         """
         Save a list of Python objects, an optional figure, and optional metadata 
         (string or JSON) into a newly created experiment folder.
@@ -54,14 +54,14 @@ class ExperimentStorage:
 
         Parameters
         ----------
-        objects : list of Any
+        objects : list of Any or None, defualt=None
             List of Python objects to be saved. Each object may define a 
             `name` attribute, which is used as filename. If not provided, 
             the object's Python ID is used instead.
-        figure : matplotlib.figure.Figure, defualt=None
+        figure : matplotlib.figure.Figure or None, defualt=None
             If given, the figure will be saved as `PLOT.png` inside the 
             experiment folder.
-        info : str or dict, default=None
+        info : str or dict or None, default=None
             If string, it is written to a text file named `INFO.txt`.  
             If dict, it is written to a JSON file named `INFO.json`.  
                 
@@ -79,16 +79,17 @@ class ExperimentStorage:
         exp_dir = self._create_experiment_dir()
 
         # Save objects
-        for obj in objects:
-            for attr, value in obj.__dict__.items():
-                if callable(value) and getattr(value, '__name__', '') == '<lambda>':
-                    setattr(obj, attr, None)
+        if objects is not None:
+            for obj in objects:
+                for attr, value in obj.__dict__.items():
+                    if callable(value) and getattr(value, '__name__', '') == '<lambda>':
+                        setattr(obj, attr, None)
 
-            file_name = getattr(obj, 'name', str(id(obj)))
-            file_path = os.path.join(exp_dir, f'{file_name}.pkl')
+                file_name = getattr(obj, 'name', str(id(obj)))
+                file_path = os.path.join(exp_dir, f'{file_name}.pkl')
 
-            with open(file_path, 'wb') as f:
-                pickle.dump(obj, f)
+                with open(file_path, 'wb') as f:
+                    pickle.dump(obj, f)
         
         # Save figure
         if figure is not None:
