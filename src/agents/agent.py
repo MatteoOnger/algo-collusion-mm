@@ -61,22 +61,22 @@ class Agent(ABC):
         This method takes a numpy array of actions and maps each action to an index based on
         its position in the predefined action space.
 
-        Parameters:
+        Parameters
         -----------
         actions : np.ndarray
             A numpy array representing the actions, last axis corresponds to a single action.
 
-        Returns:
+        Returns
         --------
         : np.ndarray
             The function returns a numpy array of indices corresponding to each action.
 
-        Raises:
+        Raises
         -------
         ValueError
             If the shape of the actions does not match the shape of the action space.
         """
-        shape = (-1, 1)
+        shape = (-1)
 
         if actions.ndim == 1:
             actions = actions[None, :]
