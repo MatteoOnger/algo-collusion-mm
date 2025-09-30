@@ -30,6 +30,44 @@ def plot_all(
     title: str = 'Makers Summary Plots'
 ) -> plt.Figure:
     """
+    Create a comprehensive summary of multiple maker agents' behavior over time.
+
+    This includes:
+    - Action histories
+    - Individual reward time series
+    - Absolute action frequency heatmaps
+    - Optional Q-table belief heatmaps (if provided)
+    - Calvano Collusion Index (CCI) over time
+    - Combined action heatmaps for the first and last windows (if there are exactly 2 agents)
+
+    Parameters
+    ----------
+    window_size : int
+        Number of episodes per window.
+    makers : dict of str to Maker
+        Dictionary mapping agent names to their corresponding `Maker` objects.
+    cci : np.ndarray
+        Array of shape (n_agents, n_windows) containing the CCI values per agent.
+    makers_belif : dict of str to np.ndarray or None, default=None
+        Dictionary of belief or Q-table arrays for each maker, to be shown as heatmaps.
+    nash_reward : float or None, default=None
+        Reference reward level for Nash equilibrium, shown as a horizontal line in reward plots.
+    coll_reward : float or None, default=None
+        Reference reward level for full collusion, shown as a horizontal line in reward plots.
+    title : str, default='Makers Summary Plots'
+        Title of the generated figure.
+
+    Returns
+    -------
+    : matplotlib.figure.Figure
+        The figure containing all generated subplots for makers' actions, rewards, frequencies,
+        beliefs, and CCI, with optional combined action heatmaps.
+
+    Notes
+    -----
+    - If `makers_belif` is provided, an additional row of heatmaps is added for agent beliefs.
+    - If exactly 2 makers are provided, combined action heatmaps are shown for the first and last windows of episodes.
+    - The figure is closed (`plt.close()`) before being returned to prevent duplicate display in notebooks.
     """
     n_makers = len(makers)
 
@@ -149,7 +187,7 @@ def plot_maker_actions(
         Array of shape (n_episodes, 2) where column 0 is ask price and column 1 is bid price.
     agent_name : str, default='Unknown'
         Name of the agent for labeling the plot.
-    ax : matplotlib.axes.Axes, optional
+    ax : matplotlib.axes.Axes or None, default=None
         Axis on which to plot. If None, a new axis is created.
 
     Returns
@@ -200,7 +238,7 @@ def plot_maker_heatmap(
         Title of the plot.
     agent_name : str, default='unknown'
         Name of the agent to include in the plot title.
-    ax : matplotlib.axes.Axes or None, optional
+    ax : matplotlib.axes.Axes or None, default=None
         The matplotlib axis on which to draw the heatmap. If None, a new axis is created.
 
     Returns
@@ -250,13 +288,13 @@ def plot_maker_rewards(
     ----------
     rewards : np.ndarray
         Array of shape (n_episodes,) with reward values per episode.
-    nash_reward : float, default=None
+    nash_reward : float or None, default=None
         Reference value for the Nash equilibrium reward. Default is None.
-    coll_reward : float, default=None
+    coll_reward : float or None, default=None
         Reference value for the collusion reward. Default is None.
     agent_name : str, default='unknown'
         Name of the agent for labeling the plot.
-    ax : matplotlib.axes.Axes, default=None
+    ax : matplotlib.axes.Axes or None, default=None
         Axis on which to plot. If None, a new axis is created.
 
     Returns
@@ -373,9 +411,9 @@ def plot_makers_cci(
         Number of episodes grouped in each window.
     cci : np.ndarray
         Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
-    agents_name : list of str or None
+    agents_name : list of str or None, default=None
         Names of the agents, used as labels in the legend.
-    ax : matplotlib.axes.Axes, default=None
+    ax : matplotlib.axes.Axes or None, default=None
         Axis on which to plot. If None, a new axis is created.
 
     Returns
@@ -438,7 +476,7 @@ def plot_makers_comb_actions(
         Name of the first agent for axis labeling.
     agent_2_name : str, default='Second Maker'
         Name of the second agent for axis labeling.
-    ax : matplotlib.axes.Axes, optional
+    ax : matplotlib.axes.Axes or None, default=None
         Axis on which to plot. If None, a new axis is created.
 
     Returns
