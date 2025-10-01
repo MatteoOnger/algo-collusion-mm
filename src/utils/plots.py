@@ -1,8 +1,10 @@
+import ipywidgets as widgets
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+from IPython.display import display
 from typing import Dict,List
 
 from ..agents.makers.exp3 import Maker
@@ -211,6 +213,95 @@ def plot_maker_actions(
     return ax
 
 
+def plot_maker_belif_evolution(
+    indexes: np.ndarray,
+    labels: np.ndarray,
+    values: np.ndarray,
+    log_scale: bool = True,
+    interval: int = 100,
+    agent_name: str = 'unknown'
+    ) -> None:
+    """
+    Display the evolution of the belief of a market maker.
+
+    Parameters
+    ----------
+    indexes : np.ndarray
+        Array of shape (N, 2) containing (x, y) index pairs where values should be placed in the heatmap.
+    labels : np.ndarray
+        Array of shape (L,) containing the price labels used for both axes (assumed to be the same for bid and ask).
+    values : np.ndarray
+        Array of shape (n_frames, N) with the heatmap values for each frame.
+    log_scale : bool, default=True
+        If True, apply log10 to the values.
+    interval : int, default=100
+        Time interval in milliseconds between frames during autoplay.
+    agent_name : str, default='unknown'
+        Name of the agent to include in the plot title.
+        
+    Notes
+    -----
+    The function displays an interactive widget in Jupyter notebooks; it does not return a value.
+    """
+    def make_dense(frame_idx):
+        dense = np.full(image_shape, np.nan)
+        dense[indexes[:, 1], indexes[:, 0]] = values[frame_idx]
+        return dense
+    
+    def update(change):
+        frame = change['new']
+        data = make_dense(frame)
+        im.set_data(data)
+
+        vmin = np.nanmin(data)
+        vmax = np.nanmax(data)
+        im.set_clim(vmin, vmax)
+
+        scale_label = f' - {agent_name.capitalize()} (Log10 Scale)' if log_scale else f' - {agent_name.capitalize()}'
+        ax.set_title(f'Frame {frame}{scale_label}')
+        fig.canvas.draw_idle()
+        return
+    
+    n_frames = values.shape[0]
+    image_shape = (len(labels), len(labels))
+    ticks = np.arange(len(labels))
+
+    if log_scale:
+        values = np.log10(values)
+
+    fig, ax = plt.subplots()
+    initial_image = make_dense(0)
+    im = ax.imshow(initial_image, cmap='viridis', interpolation='nearest')
+    fig.colorbar(im)
+
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labels)
+    ax.set_xlabel('Ask Price')
+
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labels)
+    ax.set_ylabel('Bid Price')
+
+    play = widgets.Play(
+        value=0,
+        min=0,
+        max=n_frames - 1,
+        step=1,
+        interval=interval,
+        description="Play",
+        disabled=False
+    )
+
+    slider = widgets.IntSlider(min=0, max=n_frames - 1, step=1, description='Frame')
+    widgets.jslink((play, 'value'), (slider, 'value'))
+
+    slider.observe(update, names='value')
+
+    controls = widgets.HBox([play, slider])
+    display(widgets.VBox([controls]))
+    return
+
+
 def plot_maker_heatmap(
     indexes: np.ndarray,
     labels: np.ndarray,
@@ -248,7 +339,7 @@ def plot_maker_heatmap(
     """
     is_int = np.all(np.mod(values, 1) == 0)
 
-    matrix = np.full((len(labels), len(labels)), None, dtype=np.float32)
+    matrix = np.full((len(labels), len(labels)), np.nan, dtype=np.float32)
     matrix[indexes[:, 1], indexes[:, 0]] = values 
 
     if ax is None:
