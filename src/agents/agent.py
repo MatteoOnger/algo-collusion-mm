@@ -1,7 +1,7 @@
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple, Union
+from typing import Any, List, Dict, Tuple, Union
 
 
 
@@ -148,6 +148,7 @@ class Agent(ABC):
             Initialize a new instance of History to track the actions done.
             """
             self._actions = list()
+            self._extras = list()
             self._rewards = list()
             self._states = list()
             return
@@ -210,6 +211,18 @@ class Agent(ABC):
             return np.array(self._actions)[key]
 
 
+        def get_extras(self) -> List[Any]:
+            """
+            Retrieve all the extra infos collected.
+
+            Returns
+            -------
+            : list of any
+                The extra info collected.
+            """
+            return self._extras
+
+
         def get_rewards(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
             Retrieve a subset of the reward history.
@@ -254,6 +267,19 @@ class Agent(ABC):
                 The strategy chosen by the agent, must be part of `action_space`.
             """
             self._actions.append(action)
+            return
+
+
+        def record_extra(self, extra: Any) -> None:
+            """
+            Record extra info.
+
+            Parameters
+            ----------
+            extra : any
+                The new info to save.
+            """
+            self._extras.append(extra)
             return
 
 
