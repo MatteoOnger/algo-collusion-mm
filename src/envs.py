@@ -455,7 +455,7 @@ class GMEnv(ptz.AECEnv):
         if self.episode >= self.n_episodes:
             raise ValueError('maximum number of episodes reached')
         if not ok:
-            raise ValueError(f'invalid action for agent {curr_agent}')
+            raise ValueError(f'action {action} is not valid for agent {curr_agent}')
 
         if self._ismaker(curr_agent):
             self._ask_prices[curr_agent_idx] = action['ask_price']

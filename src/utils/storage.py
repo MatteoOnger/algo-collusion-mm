@@ -44,6 +44,53 @@ class ExperimentStorage:
         return
 
 
+    def load_objects(self, exp_dir: str) -> Dict[str, Any]:
+        """
+        Load all saved objects from a given experiment folder.
+
+        Parameters
+        ----------
+        exp_dir : str
+            Path to the experiment directory containing saved objects.
+
+        Returns
+        -------
+        : dict
+            A dictionary mapping object names (filenames without extension)
+            to the loaded Python objects.
+        """
+        loaded = {}
+        for file_name in os.listdir(exp_dir):
+            if file_name.endswith('.pkl'):
+                name = file_name.replace('.pkl', '')
+                file_path = os.path.join(exp_dir, file_name)
+                with open(file_path, 'rb') as f:
+                    loaded[name] = pickle.load(f)
+        return loaded
+
+
+    def print_and_save(self, text: str) -> None:
+        """
+        Print and append a single line of text to the RESULTS.txt file in the base path.
+
+        This method logs experiment-related information by printing it to the console 
+        and appending it to a persistent file. Useful for tracking progress or results 
+        during batch runs or long experiments.
+
+        If the file does not exist, it is created automatically.
+
+        Parameters
+        ----------
+        text : str
+            The line of text to be printed and appended to the results file.
+        """
+        print(text)
+        file_path = os.path.join(self.base_path, 'RESULTS.txt')
+        with open(file_path, 'a', encoding='utf-8') as f:
+            f.write(text + '\n')
+        return
+
+
     def save_objects(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|dict|None = None) -> str:
         """
         Save a list of Python objects, an optional figure, and optional metadata 
@@ -109,31 +156,6 @@ class ExperimentStorage:
             else:
                 raise TypeError('`info` must be either a string or a dict (JSON)')
         return exp_dir
-
-
-    def load_objects(self, exp_dir: str) -> Dict[str, Any]:
-        """
-        Load all saved objects from a given experiment folder.
-
-        Parameters
-        ----------
-        exp_dir : str
-            Path to the experiment directory containing saved objects.
-
-        Returns
-        -------
-        : dict
-            A dictionary mapping object names (filenames without extension)
-            to the loaded Python objects.
-        """
-        loaded = {}
-        for file_name in os.listdir(exp_dir):
-            if file_name.endswith('.pkl'):
-                name = file_name.replace('.pkl', '')
-                file_path = os.path.join(exp_dir, file_name)
-                with open(file_path, 'rb') as f:
-                    loaded[name] = pickle.load(f)
-        return loaded
 
 
     def _create_experiment_dir(self) -> str:

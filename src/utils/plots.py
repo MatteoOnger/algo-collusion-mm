@@ -463,8 +463,8 @@ def plot_makers_best_actions(
         best_is_ask = (true_value - ask_prices) >= (bid_prices - true_value)
         best_is_bid = (true_value - ask_prices) <= (bid_prices - true_value)
 
-        ax.scatter(x[best_is_ask], ask_prices[best_is_ask], label=f'{name.capitalize()} - Ask', color=color, marker=markers['ask'], alpha=1.0)
-        ax.scatter(x[best_is_bid], bid_prices[best_is_bid], label=f'{name.capitalize()} - Bid', color=color, marker=markers['bid'], alpha=1.0)
+        ax.scatter(x[best_is_ask], ask_prices[best_is_ask], label=f'{name.capitalize()} - Ask', color=color, marker=markers['ask'], s=100*(n_agents-idx))
+        ax.scatter(x[best_is_bid], bid_prices[best_is_bid], label=f'{name.capitalize()} - Bid', color=color, marker=markers['bid'], s=100*(n_agents-idx))
 
     min_ask_prices = np.min(actions[:, :, 0], axis=0)
     max_bid_prices = np.max(actions[:, :, 1], axis=0)
@@ -472,8 +472,8 @@ def plot_makers_best_actions(
     best_is_ask = (true_value - min_ask_prices) >= (max_bid_prices - true_value)
     best_is_bid = (true_value - min_ask_prices) <= (max_bid_prices - true_value)
 
-    ax.scatter(x[best_is_ask], min_ask_prices[best_is_ask], s=200, facecolors='none', edgecolors='red')
-    ax.scatter(x[best_is_bid], max_bid_prices[best_is_bid], s=200, facecolors='none', edgecolors='red')
+    ax.scatter(x[best_is_ask], min_ask_prices[best_is_ask], s=250, facecolors='none', edgecolors='red')
+    ax.scatter(x[best_is_bid], max_bid_prices[best_is_bid], s=250, facecolors='none', edgecolors='red')
 
     ax.axhline(true_value, color='black', ls=':', label='True Value')
     ax.set_xlabel('Episode')
