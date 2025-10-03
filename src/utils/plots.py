@@ -218,6 +218,7 @@ def plot_maker_belif_evolution(
     labels: np.ndarray,
     values: np.ndarray,
     log_scale: bool = True,
+    adaptive_scale: bool = False,
     interval: int = 100,
     agent_name: str = 'unknown'
     ) -> None:
@@ -234,6 +235,8 @@ def plot_maker_belif_evolution(
         Array of shape (n_frames, N) with the heatmap values for each frame.
     log_scale : bool, default=True
         If True, apply log10 to the values.
+    adaptive_scale : bool, default=False
+        If True, the colorbar is update for each frame.
     interval : int, default=100
         Time interval in milliseconds between frames during autoplay.
     agent_name : str, default='unknown'
@@ -253,9 +256,10 @@ def plot_maker_belif_evolution(
         data = make_dense(frame)
         im.set_data(data)
 
-        vmin = np.nanmin(data)
-        vmax = np.nanmax(data)
-        im.set_clim(vmin, vmax)
+        if adaptive_scale:
+            vmin = np.nanmin(data)
+            vmax = np.nanmax(data)
+            im.set_clim(vmin, vmax)
 
         scale_label = f' - {agent_name.capitalize()} (Log10 Scale)' if log_scale else f' - {agent_name.capitalize()}'
         ax.set_title(f'Frame {frame}{scale_label}')
@@ -271,7 +275,10 @@ def plot_maker_belif_evolution(
 
     fig, ax = plt.subplots()
     initial_image = make_dense(0)
-    im = ax.imshow(initial_image, cmap='viridis', interpolation='nearest')
+    if adaptive_scale:
+        im = ax.imshow(initial_image, cmap='viridis', interpolation='nearest')
+    else:
+        im = ax.imshow(initial_image, cmap='viridis', interpolation='nearest', vmax=np.max(values), vmin=np.min(values))
     fig.colorbar(im)
 
     ax.set_xticks(ticks)
