@@ -25,14 +25,15 @@ class ExperimentStorage:
         Progressive ID counter for experiments within this storage instance.
     """
 
-    def __init__(self, base_path: str, padding: int = 3) -> None:
+    def __init__(self, base_path: str|None, padding: int = 3) -> None:
         """
         Initialize the storage with a base directory.
 
         Parameters
         ----------
-        base_path : str
+        base_path : str or None
             Path to the root directory where experiments will be saved.
+            If None, this saver can be used only to load data.
         padding : int
             Total number of digits for the experiment number, padded with leading zeros.
         """
@@ -40,7 +41,8 @@ class ExperimentStorage:
         self.padding = padding
 
         self.experiment_counter = 0
-        os.makedirs(self.base_path, exist_ok=True)
+        if base_path is not None:
+            os.makedirs(self.base_path, exist_ok=True)
         return
 
 
@@ -83,7 +85,15 @@ class ExperimentStorage:
         ----------
         text : str
             The line of text to be printed and appended to the results file.
+
+        Raises
+        ------
+        ValueError
+            If `base_path` is None.
         """
+        if self.base_path is None:
+            raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
+
         print(text)
         file_path = os.path.join(self.base_path, 'RESULTS.txt')
         with open(file_path, 'a', encoding='utf-8') as f:
@@ -117,12 +127,16 @@ class ExperimentStorage:
         : str
             Path to the experiment folder where objects were saved.
         
-
         Raises
         ------
         TypeError
             If `info` is not a string or a dictionary.
+        ValueError
+            If `base_path` is None.
         """
+        if self.base_path is None:
+            raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
+
         exp_dir = self._create_experiment_dir()
 
         # Save objects
@@ -158,25 +172,62 @@ class ExperimentStorage:
         return exp_dir
 
 
-    def save_object(self, obj: object, file_name: str) -> None:
+    def save_figures(self, figures: Dict[str, Any], dpi: int = 300) -> None:
         """
-        Save a list of Python objects.
+        Save a dictionary of Matplotlib figures to PNG files.
 
         Parameters
         ----------
-        obj : object
-            Python object to be saved.
-        file_name : str
-            Name of the file.
+        figures : dict of str to matplotlib.figure.Figure
+            Dictionary where keys are string names used as filenames (without extension)
+            and values are Matplotlib figure objects to be saved.
+        dpi : int, optional
+            Resolution in dots per inch for the saved figures. Default is 300.
+
+        Raises
+        ------
+        ValueError
+            If `base_path` is None.
+
+        Notes
+        -----
+        Each figure is saved in a separate PNG file named '<key>.png' inside `base_path`.
         """
-        for attr, value in obj.__dict__.items():
-            if callable(value) and getattr(value, '__name__', '') == '<lambda>':
-                setattr(obj, attr, None)
+        if self.base_path is None:
+            raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
 
-        file_path = os.path.join(self.base_path, f'{file_name}.pkl')
+        for name, fig in figures.items():
+            file_path = os.path.join(self.base_path, f'{name}.png')
+            fig.savefig(file_path, dpi=dpi, bbox_inches='tight')
+        return
 
-        with open(file_path, 'wb') as f:
-            pickle.dump(obj, f)
+    
+    def save_objects(self, objects: Dict[str, Any]) -> None:
+        """
+        Save a dictionary of Python objects to pickle files.
+
+        Parameters
+        ----------
+        objects : dict of str to Any
+            Dictionary where keys are string names used as filenames (without extension)
+            and values are the Python objects to be saved.
+
+        Raises
+        ------
+        ValueError
+            If `base_path` is None.
+
+        Notes
+        -----
+        Each object is saved in a separate pickle file named '<key>.pkl' inside `base_path`.
+        """
+        if self.base_path is None:
+            raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
+
+        for name, obj in objects.items():
+            file_path = os.path.join(self.base_path, f'{name}.pkl')
+            with open(file_path, 'wb') as f:
+                pickle.dump(obj, f)
         return
 
 
@@ -188,7 +239,15 @@ class ExperimentStorage:
         -------
         : str
             Path to the created experiment directory.
+
+        Raises
+        ------
+        ValueError
+            If `base_path` is None.
         """
+        if self.base_path is None:
+            raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
+
         self.experiment_counter += 1
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         exp_dir = os.path.join(self.base_path, f'experiment_{self.experiment_counter:0{self.padding}}_{timestamp}')

@@ -33,6 +33,9 @@ class MakerEXP3(Maker):
     --------
     - Auer, P., Cesa-Bianchi, N., Freund, Y., & Schapire, R. E. (2002).
     The nonstochastic multiarmed bandit problem. SIAM journal on computing, 32(1), 48-77.
+    - Auer, P., Cesa-Bianchi, N., Freund, Y., & Schapire, R. E. (1995, October).
+    Gambling in a rigged casino: The adversarial multi-armed bandit problem.
+    In Proceedings of IEEE 36th annual foundations of computer science (pp. 322-331). IEEE.
     """
 
     def __init__(
@@ -75,7 +78,7 @@ class MakerEXP3(Maker):
         """
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
         self.epsilon = epsilon
-        self.weights = np.ones(self.n_arms)
+        self.weights = np.zeros(self.n_arms, dtype=np.float64)
         return
 
 
@@ -90,7 +93,7 @@ class MakerEXP3(Maker):
             Array of shape (n_arms,) representing probability of selecting
             each arm according to the Exp3 formula.
         """
-        return (1 - self.epsilon) * self.weights / np.sum(self.weights) + self.epsilon / self.n_arms
+        return (1 - self.epsilon) * np.exp(self.weights, dtype=np.float128) / np.sum(np.exp(self.weights, dtype=np.float128)) + self.epsilon / self.n_arms
 
 
     @staticmethod
@@ -117,7 +120,7 @@ class MakerEXP3(Maker):
 
 
     def act(self, observation: Dict) -> Dict:
-        arm_idx = self._rng.choice(self.n_arms, p=self.probs)
+        arm_idx = self._rng.choice(self.n_arms, p=self.probs.astype(np.float64))
 
         strategy = self.action_space[arm_idx]
         self.last_action = (arm_idx, self.probs[arm_idx])
@@ -134,7 +137,7 @@ class MakerEXP3(Maker):
             return
         
         arm_idx, prob = self.last_action
-        self.weights[arm_idx] = self.weights[arm_idx] * np.exp(self.epsilon * (reward/prob) / self.n_arms)
+        self.weights[arm_idx] += (self.epsilon * (reward/prob) / self.n_arms)
 
         self.history.record_reward(reward)
         self.last_action = None
@@ -143,5 +146,5 @@ class MakerEXP3(Maker):
 
     def reset(self) -> None:
         super().reset()
-        self.weights = np.ones(self.n_arms)
+        self.weights = np.zeros(self.n_arms)
         return
