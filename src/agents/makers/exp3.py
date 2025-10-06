@@ -28,6 +28,11 @@ class MakerEXP3(Maker):
     -----
     Trader are stateless agents, so the history is only used to
     keep track of actions taken and the rewards received.
+
+    See Also
+    --------
+    - Auer, P., Cesa-Bianchi, N., Freund, Y., & Schapire, R. E. (2002).
+    The nonstochastic multiarmed bandit problem. SIAM journal on computing, 32(1), 48-77.
     """
 
     def __init__(
@@ -89,7 +94,7 @@ class MakerEXP3(Maker):
 
 
     @staticmethod
-    def compute_epsilon(n_arms: int, n_episodes: int) -> float:
+    def compute_epsilon(n_arms: int, max_cumulative_reward: int) -> float:
         """
         Compute the learning rate epsilon for the Exp3 algorithm.
         
@@ -100,15 +105,15 @@ class MakerEXP3(Maker):
         ----------
         n_arms : int
             The number of arms (actions) in the bandit problem.
-        n_episodes : int
-            The total number of episodes (rounds) to be played.
+        max_cumulative_reward : int
+            Maximum cumulative reward possible after T rounds.
 
         Returns
         -------
         epsilon : float
             The calculated optimal learning rate, bounded between 0 and 1.
         """
-        return min(1, np.sqrt((n_arms * np.log(n_arms)) / ((np.e - 1) * n_episodes)))
+        return min(1, np.sqrt((n_arms * np.log(n_arms)) / ((np.e - 1) * max_cumulative_reward)))
 
 
     def act(self, observation: Dict) -> Dict:

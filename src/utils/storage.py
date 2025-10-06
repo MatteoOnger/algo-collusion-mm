@@ -91,7 +91,7 @@ class ExperimentStorage:
         return
 
 
-    def save_objects(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|dict|None = None) -> str:
+    def save_experiment(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|dict|None = None) -> str:
         """
         Save a list of Python objects, an optional figure, and optional metadata 
         (string or JSON) into a newly created experiment folder.
@@ -156,6 +156,28 @@ class ExperimentStorage:
             else:
                 raise TypeError('`info` must be either a string or a dict (JSON)')
         return exp_dir
+
+
+    def save_object(self, obj: object, file_name: str) -> None:
+        """
+        Save a list of Python objects.
+
+        Parameters
+        ----------
+        obj : object
+            Python object to be saved.
+        file_name : str
+            Name of the file.
+        """
+        for attr, value in obj.__dict__.items():
+            if callable(value) and getattr(value, '__name__', '') == '<lambda>':
+                setattr(obj, attr, None)
+
+        file_path = os.path.join(self.base_path, f'{file_name}.pkl')
+
+        with open(file_path, 'wb') as f:
+            pickle.dump(obj, f)
+        return
 
 
     def _create_experiment_dir(self) -> str:
