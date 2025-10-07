@@ -15,22 +15,37 @@ class MakerEXP3(Maker):
     The distribution balances exploitation of historically successful strategies and
     exploration of less tried strategies, controlled by the `epsilon` parameter.
 
+    The agent receives a reward at each round and scales it into the [0, 1] interval
+    using the `min_reward` and `max_reward` parameters. This normalization is required
+    by the Exp3 algorithm to ensure correct weight updates.
+
     Attributes
     ----------
     epsilon : float
         Exploration parameter of Exp3, in the range (0, 1].
+    min_reward : float
+            Minimum possible reward that can be collected per round.
+    max_reward : float
+            Maximum possible reward that can be collected per round.
     weights : np.ndarray
-        Current Exp3 weights for each arm, initially all ones.
+        Current Exp3 weights for each arm, initially all zeros.
     probs : np.ndarray
         Current probability distribution over arms, computed from weights and epsilon.
     
     Notes
     -----
-    Trader are stateless agents, so the history is only used to
-    keep track of actions taken and the rewards received.
+    - The reward is scaled using:
 
+          scaled_reward = (raw_reward - min_reward) / (max_reward - min_reward)
+
+      This assumes raw rewards lie within the [`min_reward`, `max_reward`] interval.
+    - Agents are stateless, so past actions and rewards are not used for state updates,
+      but only for computing learning signals.
+    - This implementation follows the framework from Lattimore (2020).
+    
     See Also
     --------
+    - Lattimore, T., & Szepesvári, C. (2020). Bandit algorithms. Cambridge University Press.
     - Auer, P., Cesa-Bianchi, N., Freund, Y., & Schapire, R. E. (2002).
     The nonstochastic multiarmed bandit problem. SIAM journal on computing, 32(1), 48-77.
     - Auer, P., Cesa-Bianchi, N., Freund, Y., & Schapire, R. E. (1995, October).
@@ -41,6 +56,8 @@ class MakerEXP3(Maker):
     def __init__(
         self,
         epsilon: float,
+        min_reward: float,
+        max_reward: float,
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -56,6 +73,10 @@ class MakerEXP3(Maker):
         ----------
         epsilon : float
             Exploration parameter of Exp3, in the range (0, 1].
+        min_reward : float
+            Minimum possible reward that can be collected per round.
+        max_reward : float
+            Maximum possible reward that can be collected per round.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -75,9 +96,31 @@ class MakerEXP3(Maker):
             Name assigned to the agent.
         seed : int or None, default=None
             Seed for the internal random generator.
+
+        Raises
+        ------
+        ValueError
+            If `min_reward` is not strictly less than `max_reward`.
+
+        Notes
+        -----
+        The `min_reward` and `max_reward` parameters define the expected reward range
+        and are used to normalize the reward into the [0, 1] interval for compatibility
+        with the EXP3 algorithm. The scaled reward is computed as:
+
+            scaled_reward = (raw_reward - min_reward) / (max_reward - min_reward)
+
+        If the raw reward falls outside of [min_reward, max_reward], the scaling
+        may produce values outside the [0, 1] range.
         """
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+
+        if min_reward >= max_reward:
+                raise ValueError(f'`min_reward` ({min_reward}) must be strictly less than `max_reward` ({max_reward})')
+        
         self.epsilon = epsilon
+        self.min_reward = min_reward
+        self.max_reward = max_reward
         self.weights = np.zeros(self.n_arms, dtype=np.float64)
         return
 
@@ -93,11 +136,11 @@ class MakerEXP3(Maker):
             Array of shape (n_arms,) representing probability of selecting
             each arm according to the Exp3 formula.
         """
-        return (1 - self.epsilon) * np.exp(self.weights, dtype=np.float128) / np.sum(np.exp(self.weights, dtype=np.float128)) + self.epsilon / self.n_arms
+        return np.exp(self.weights * self.epsilon) / np.sum(np.exp(self.weights * self.epsilon))
 
 
     @staticmethod
-    def compute_epsilon(n_arms: int, max_cumulative_reward: int) -> float:
+    def compute_epsilon(n_arms: int, n_episodes: int) -> float:
         """
         Compute the learning rate epsilon for the Exp3 algorithm.
         
@@ -108,15 +151,15 @@ class MakerEXP3(Maker):
         ----------
         n_arms : int
             The number of arms (actions) in the bandit problem.
-        max_cumulative_reward : int
-            Maximum cumulative reward possible after T rounds.
+        n_episodes : int
+            Number of episodes.
 
         Returns
         -------
         epsilon : float
             The calculated optimal learning rate, bounded between 0 and 1.
         """
-        return min(1, np.sqrt((n_arms * np.log(n_arms)) / ((np.e - 1) * max_cumulative_reward)))
+        return np.sqrt(np.log(n_arms) / (n_arms * n_episodes))
 
 
     def act(self, observation: Dict) -> Dict:
@@ -136,8 +179,11 @@ class MakerEXP3(Maker):
         if self.last_action is None:
             return
         
+        scaled_reward = (reward - self.min_reward) / (self.max_reward - self.min_reward)
+        scaled_reward = np.clip(scaled_reward, 0.0, 1.0)
+
         arm_idx, prob = self.last_action
-        self.weights[arm_idx] += (self.epsilon * (reward/prob) / self.n_arms)
+        self.weights[arm_idx] += 1 - (1 - scaled_reward) / prob
 
         self.history.record_reward(reward)
         self.last_action = None
