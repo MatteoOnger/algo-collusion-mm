@@ -108,7 +108,7 @@ def plot_all(
         )
 
         # Row 2: Frequency heatmap
-        actions, freqs = agent.history.compute_freqs()
+        actions, freqs = agent.history.compute_freqs(return_unique=True)
 
         ax_freq = fig.add_subplot(gs[2, i])
         plot_maker_heatmap(
