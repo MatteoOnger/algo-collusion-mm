@@ -39,7 +39,7 @@ class Agent(ABC):
             self._seed = self._rng.bit_generator.seed_seq.entropy
 
         self.name = name
-        self.history = Agent.History()
+        self.history = Agent.History(self)
         return
 
 
@@ -100,7 +100,7 @@ class Agent(ABC):
         Reset the internal state of the agent.
         """
         self._rng = np.random.default_rng(self._seed)
-        self.history = Agent.History()
+        self.history = Agent.History(self)
         return
 
 
@@ -143,10 +143,12 @@ class Agent(ABC):
         Class for tracking the sequence of actions, rewards and states of the agent.
         """
 
-        def __init__(self):
+        def __init__(self, agent: 'Agent'):
             """
             Initialize a new instance of History to track the actions done.
             """
+            self._agent = agent
+
             self._actions = list()
             self._extras = list()
             self._rewards = list()
@@ -154,24 +156,37 @@ class Agent(ABC):
             return
 
 
-        def compute_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> Tuple[np.ndarray, np.ndarray]:
+        def compute_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None), return_unique: bool = False) -> np.ndarray|Tuple[np.ndarray, np.ndarray]:
             """
-            Count the frequency of each action.
+            Compute the frequency of each action taken over selected episodes.
 
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=[:]
                 Index, slice, or tuple specifying episodes.
+            return_unique : bool, default=False
+                If True, returns the unique actions and their counts directly.
+                If False, returns an array with counts aligned to the agent's action space.
 
             Returns
             -------
-            unique_actions : np.ndarray
-                Array containing unique actions.
-            counts : np.ndarray
-                Array containing the count of unique action.
+            : np.ndarray or tuple[np.ndarray, np.ndarray]
+                If return_unique is False:
+                    A 1D array of shape (n_arms,) where each index corresponds to
+                    the count of actions taken for that arm.
+                If return_unique is True:
+                    A tuple (unique_actions, counts), where:
+                        - unique_actions: array of unique actions taken.
+                        - counts: array of corresponding action counts.
             """
             unique_actions, counts = np.unique(self.get_actions(key), axis=0, return_counts=True)
-            return unique_actions, counts
+
+            arm_counts = np.zeros(self._agent.n_arms, dtype=int)
+            arm_counts[self._agent.action_to_index(unique_actions)] = counts
+
+            if return_unique:
+                return unique_actions, counts
+            return arm_counts
 
 
         def compute_most_common(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> Tuple[np.ndarray, int]:
