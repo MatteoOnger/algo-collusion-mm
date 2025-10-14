@@ -492,27 +492,14 @@ class GMEnv(ptz.AECEnv):
             self.trader_action = action['operation']
         
         # Compute rewards
-        if self._agent_selector.is_last() and self.trader_action != GMEnv.TraderAction.PASS:
-            if self.trader_action == GMEnv.TraderAction.BUY:
-                reward = self.true_value - self.min_ask_price
-                selected_makers_idx = np.where(self._ask_prices == self.min_ask_price)[0]
-            elif self.trader_action == GMEnv.TraderAction.SELL:
-                reward = self.max_bid_price - self.true_value
-                selected_makers_idx = np.where(self._bid_prices == self.max_bid_price)[0]
+        if self._agent_selector.is_last():
+            rewards = self._compute_rewards()
             
-            reward = round(reward, self.decimal_places)
-
+            self.rewards = {}
             for idx, agent in enumerate(self.possible_agents):
-                if self._istrader(agent) and agent in self.agents:
-                    self.rewards[agent] = reward
-                elif self._ismaker(agent) and idx in selected_makers_idx:
-                    self.rewards[agent] = - reward / len(selected_makers_idx)
-                else:
-                    self.rewards[agent] = 0
+                self.rewards[agent] = rewards[idx]
                 self.cumulative_rewards[agent] = round(self.cumulative_rewards[agent] + self.rewards[agent], self.decimal_places)
-        else:
-            self.rewards = {agent: 0 for agent in self.possible_agents}
-        
+
         # Update observations
         # Infos, truncations and terminations will be updated only if the episode ends
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
