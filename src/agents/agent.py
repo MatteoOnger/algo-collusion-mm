@@ -1,7 +1,7 @@
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Dict, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 
 
@@ -18,7 +18,7 @@ class Agent(ABC):
     n_arms : int
         Number of actions (arms) in the action space.
     history : Agent.History
-        Internal tracker of actions taken.
+        Internal tracker of actions taken, rewards and other infos.
     """
 
 
@@ -33,24 +33,36 @@ class Agent(ABC):
         """
         super().__init__()
         self._seed = seed
+        """ Seed of the PRNG.
+        """
         self._rng = np.random.default_rng(self._seed)
+        """ PRNG.
+        """
 
         if self._seed is None:
             self._seed = self._rng.bit_generator.seed_seq.entropy
 
         self.name = name
+        """ Name of the agent.
+        """
         self.history = Agent.History(self)
+        """ History of the agent.
+        """
         return
 
 
     @property
     def n_arms(self) -> int:
+        """ Number of actions.
+        """
         return len(self.action_space)
     
 
     @property
     @abstractmethod
     def action_space(self) -> np.ndarray:
+        """Action space.
+        """
         pass
 
 
@@ -111,7 +123,7 @@ class Agent(ABC):
 
         Parameters
         ----------
-        observation : dict
+        observation : dict of str
             The current observation for the agent.
 
         Returns
@@ -132,7 +144,7 @@ class Agent(ABC):
         ----------
         reward : float
             The reward assigned to the agent for the most recent action.
-        info : dict
+        info : dict of str
             Empty dictionary. Not used for this agent.
         """
         pass
@@ -156,9 +168,13 @@ class Agent(ABC):
             return
 
 
-        def compute_freqs(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None), return_unique: bool = False) -> np.ndarray|Tuple[np.ndarray, np.ndarray]:
+        def compute_freqs(
+            self,
+            key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None),
+            return_unique: bool = False
+        ) -> np.ndarray|Tuple[np.ndarray, np.ndarray]:
             """
-            Compute the frequency of each action taken over selected episodes.
+            Computes the frequency of each action taken over selected episodes.
 
             Parameters
             ----------
@@ -189,9 +205,12 @@ class Agent(ABC):
             return arm_counts
 
 
-        def compute_most_common(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> Tuple[np.ndarray, int]:
+        def compute_most_common(
+            self,
+            key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)
+        ) -> Tuple[np.ndarray, int]:
             """
-            Return the most frequent action.
+            Returns the most frequent action.
 
             Parameters
             ----------
@@ -211,7 +230,7 @@ class Agent(ABC):
 
         def get_actions(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieve a subset of the action history.
+            Retrieves a subset of the action history.
 
             Parameters
             ----------
@@ -226,21 +245,26 @@ class Agent(ABC):
             return np.array(self._actions)[key]
 
 
-        def get_extras(self) -> List[Any]:
+        def get_extras(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieve all the extra infos collected.
+            Retrieves all the extra infos collected.
+
+            Parameters
+            ----------
+            key : int, slice, or tuple of ints/slices, default=[:]
+                Index, slice, or tuple specifying episodes.
 
             Returns
             -------
-            : list of any
-                The extra info collected.
+            : np.ndarray
+                Subset of the extra info collected.
             """
-            return self._extras
+            return np.array(self._extras)[key]
 
 
         def get_rewards(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieve a subset of the reward history.
+            Retrieves a subset of the reward history.
 
             Parameters
             ----------
@@ -255,9 +279,9 @@ class Agent(ABC):
             return np.array(self._rewards)[key]
 
 
-        def get_statess(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+        def get_states(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieve a subset of the state history.
+            Retrieves a subset of the state history.
 
             Parameters
             ----------
@@ -274,7 +298,7 @@ class Agent(ABC):
 
         def record_action(self, action: Any) -> None:
             """
-            Record a new action in the history.
+            Records a new action in the history.
 
             Parameters
             ----------
@@ -287,7 +311,7 @@ class Agent(ABC):
 
         def record_extra(self, extra: Any) -> None:
             """
-            Record extra info.
+            Records extra info.
 
             Parameters
             ----------
@@ -300,7 +324,7 @@ class Agent(ABC):
 
         def record_reward(self, reward: float) -> None:
             """
-            Record a new reward in the history.
+            Records a new reward in the history.
 
             Parameters
             ----------
@@ -313,7 +337,7 @@ class Agent(ABC):
 
         def record_state(self, state: Any) -> None:
             """
-            Record a new state in the history.
+            Records a new state in the history.
 
             Parameters
             ----------

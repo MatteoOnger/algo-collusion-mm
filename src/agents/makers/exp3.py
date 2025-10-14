@@ -22,9 +22,10 @@ class MakerEXP3(Maker):
     Attributes
     ----------
     epsilon : float
-        Exploration parameter of Exp3, in the range (0, 1].
-    scale_rewards : Callable[[float], float]
+        Exploration parameter of Exp3.
+    scale_rewards : callable[[float], float]
         A function that scales raw rewards into a normalized range (e.g., [0, 1]).
+    
     weights : np.ndarray
         Current Exp3 weights for each arm.
     probs : np.ndarray
@@ -32,8 +33,6 @@ class MakerEXP3(Maker):
     
     Notes
     -----
-    - This implementation is stateless across episodes—only current observations and
-      scaled rewards are used for updates.
     - Based on the adversarial bandit framework described in Lattimore & Szepesvári (2020).
     
     See Also
@@ -57,7 +56,7 @@ class MakerEXP3(Maker):
         prices: np.ndarray|None = None,
         action_space: np.ndarray|None = None,
         decimal_places: int = 2,
-        name: str = 'maker_exp3',
+        name: str = 'exp3',
         seed: int|None = None
     ):
         """
@@ -79,12 +78,12 @@ class MakerEXP3(Maker):
             Allow the bid price to be equal to the ask price.
             Not used if `action_space` is given.
         prices : np.ndarray or None, default=None
-            Discrete set of possible prices.
+            Set of possible prices.
         action_space : np.ndarray or None, default=None
             All possible (ask_price, bid_price) pairs.
         decimal_places : int, default=2
-            Number of decimal places to which rewards are rounded.
-        name : str, default='maker'
+            Number of decimal places to which rewards and actions are rounded.
+        name : str, default='exp3'
             Name assigned to the agent.
         seed : int or None, default=None
             Seed for the internal random generator.
@@ -92,21 +91,20 @@ class MakerEXP3(Maker):
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.epsilon = epsilon
+        """ Exploration parameter.
+        """
         self.scale_rewards = scale_rewards
+        """ Function to scale raw rewards.
+        """
         self.weights = np.zeros(self.n_arms, dtype=np.float64)
+        """ Current weights for each arm.
+        """
         return
 
 
     @property
     def probs(self) -> np.ndarray:
-        """
-        Compute the current probability distribution over actions.
-
-        Returns
-        -------
-        probs : np.ndarray
-            Array of shape (n_arms,) representing probability of selecting
-            each arm according to the Exp3 formula.
+        """ Current probability distribution over actions.
         """
         return np.exp(self.weights * self.epsilon) / np.sum(np.exp(self.weights * self.epsilon))
 
@@ -114,7 +112,7 @@ class MakerEXP3(Maker):
     @staticmethod
     def compute_epsilon(n_arms: int, n_episodes: int) -> float:
         """
-        Compute the learning rate epsilon for the Exp3 algorithm.
+        Computes the learning rate epsilon for the Exp3 algorithm.
         
         The formula used is derived from the theoretical guarantees of the Exp3
         algorithm to minimize regret.
@@ -129,7 +127,7 @@ class MakerEXP3(Maker):
         Returns
         -------
         epsilon : float
-            The calculated optimal learning rate, bounded between 0 and 1.
+            The calculated optimal learning rate.
         """
         return np.sqrt(np.log(n_arms) / (n_arms * n_episodes))
 

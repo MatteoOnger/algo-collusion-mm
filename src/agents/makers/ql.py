@@ -31,19 +31,20 @@ class MakerInformedQL(Maker):
     ----------
     n_agents : int
         Number of maker agents in the environment.
-    alpha : float, default=0.1
+    alpha : float
         Learning rate for Q-value updates, in the range (0, 1].
-    gamma : float, default=0.9
+    gamma : float
         Discount factor for future rewards, in the range [0, 1].
-    epsilon_scheduler : str, default='constant'
+    epsilon_scheduler : str
         Name of the scheduler used to update the expolarion rate epsilon.
         Must be one of the ones in `MakerMLQL._scheduler`.
-    epsilon_init : float, default=0.0
+    epsilon_init : float
         Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
-    epsilon_decay_rate : float, default=0.0
+    epsilon_decay_rate : float
         Decay rate applied to `epsilon` after each step.
-    q_init : float or np.ndarray, default=0.0
+    q_init : float or np.ndarray
         Initial values of the Q-table.
+    
     epsilon : float
         Current exploration rate for the epsilon-greedy policy, in the range [0, 1].
     Q : np.ndarray
@@ -109,7 +110,7 @@ class MakerInformedQL(Maker):
             Allow the bid price to be equal to the ask price.
             Not used if `action_space` is given.
         prices : np.ndarray or None, default=None
-            Discrete set of possible prices.
+            Set of possible prices.
         action_space : np.ndarray or None, default=None
             All possible (ask_price, bid_price) pairs.
         decimal_places : int, default=2
@@ -122,19 +123,43 @@ class MakerInformedQL(Maker):
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.n_agents = n_agents
+        """ Number of agents.
+        """
         self.alpha = alpha
+        """ Learning rate for Q-value updates.
+        """
         self.gamma = gamma
+        """ Discount factor for future rewards.
+        """
         self.epsilon_scheduler = epsilon_scheduler
+        """ Name of the scheduler.
+        """
         self.epsilon_init = epsilon_init
+        """  Initial exploration rate.
+        """
         self.epsilon_decay_rate = epsilon_decay_rate
+        """  Decay rate.
+        """
         self.q_init = q_init
+        """ Initial values of the Q-table.
+        """
 
         self._t = 0
+        """ Rounds done.
+        """
         self._scheduler = MakerInformedQL._scheduler[epsilon_scheduler]
+        """ Epsilon scheduler.
+        """
 
         self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        """ Current exploration rate.
+        """
         self.Q = np.zeros(((self.n_arms ** self.n_agents) + 1, self.n_arms)) + self.q_init
+        """ Current Q-values.
+        """
         self.curr_state_idx = 0
+        """ Index of the current state.
+        """
         return
 
 
@@ -166,9 +191,9 @@ class MakerInformedQL(Maker):
         ----------
         reward : float
             The reward assigned to the agent for the most recent action.
-        info : dict
+        info : dict of str
             A dictionary containing:
-            - 'actions': array of actions played by all creators in the round just ended.
+            - 'actions' (np.ndarray): array of actions played by all creators in the round just ended.
                 It represents the new state.
         """
         if self.last_action is None:
@@ -197,7 +222,7 @@ class MakerInformedQL(Maker):
 
     def _action_to_state_idx(self, actions: np.ndarray) -> int:
         """
-        Convert a list of actions into a unique state index.
+        Converts a list of actions into a unique state index.
 
         Parameters
         ----------

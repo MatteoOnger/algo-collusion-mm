@@ -19,13 +19,13 @@ class ExperimentStorage:
 
     Attributes
     ----------
-    base_path : str
+    base_path : str or None
         Path to the root directory where experiments will be saved.
     experiment_counter : int
         Progressive ID counter for experiments within this storage instance.
     """
 
-    def __init__(self, base_path: str|None, padding: int = 3) -> None:
+    def __init__(self, base_path: str|None, padding: int = 3):
         """
         Initialize the storage with a base directory.
 
@@ -34,13 +34,19 @@ class ExperimentStorage:
         base_path : str or None
             Path to the root directory where experiments will be saved.
             If None, this saver can be used only to load data.
-        padding : int
+        padding : int, default=3
             Total number of digits for the experiment number, padded with leading zeros.
         """
         self.base_path = base_path
+        """ Path to the root directory.
+        """
         self.padding = padding
-
+        """ Number of digits for the experiment number.
+        """
         self.experiment_counter = 0
+        """ Progressive ID counter for experiments.
+        """
+
         if base_path is not None:
             os.makedirs(self.base_path, exist_ok=True)
         return
@@ -48,7 +54,7 @@ class ExperimentStorage:
 
     def load_objects(self, exp_dir: str) -> Dict[str, Any]:
         """
-        Load all saved objects from a given experiment folder.
+        Loads all saved objects from a given experiment folder.
 
         Parameters
         ----------
@@ -57,7 +63,7 @@ class ExperimentStorage:
 
         Returns
         -------
-        : dict
+        : dict of str to any
             A dictionary mapping object names (filenames without extension)
             to the loaded Python objects.
         """
@@ -111,7 +117,7 @@ class ExperimentStorage:
 
         Parameters
         ----------
-        objects : list of Any or None, defualt=None
+        objects : list of any or None, defualt=None
             List of Python objects to be saved. Each object may define a 
             `name` attribute, which is used as filename. If not provided, 
             the object's Python ID is used instead.
@@ -181,7 +187,7 @@ class ExperimentStorage:
         figures : dict of str to matplotlib.figure.Figure
             Dictionary where keys are string names used as filenames (without extension)
             and values are Matplotlib figure objects to be saved.
-        dpi : int, optional
+        dpi : int, default=300
             Resolution in dots per inch for the saved figures. Default is 300.
 
         Raises
@@ -208,7 +214,7 @@ class ExperimentStorage:
 
         Parameters
         ----------
-        objects : dict of str to Any
+        objects : dict of str to any
             Dictionary where keys are string names used as filenames (without extension)
             and values are the Python objects to be saved.
 

@@ -10,7 +10,7 @@ class Trader(Agent):
 
     Notes
     -----
-    Trader are stateless agents, so the history is only used to
+    Traders are stateless agents, so the history is only used to
     keep track of actions taken and the rewards received.
     """
 

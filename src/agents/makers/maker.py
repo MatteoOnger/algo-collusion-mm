@@ -13,29 +13,27 @@ class Maker(Agent):
 
     Attributes
     ----------
-    ticksize : float, default=0.02
+    ticksize : float
         Minimum increment for prices in the action space.
-    low : float, default=0.0
+    low : float
         Minimum price allowed.
-    high : float, default=1.0
+    high : float
         Maximum price allowed.
+    eq : bool
+        Allow the bid price to be equal to the ask price.
+        Not used if `action_space` is given.
     prices : np.ndarray
-        Discrete set of possible prices.
+        Set of possible prices.
     action_space : np.ndarray
         All possible (ask_price, bid_price) pairs.
-    decimal_places : int, default=2
+    decimal_places : int
         Number of decimal places to which rewards and actions are rounded.
+    
     last_action : tuple or int or None
         Last chosen action.
         It is None if no action has been taken yet, if it is an integer, it represents the index 
         of the action in the action space, otherwise it is a tuple containing the index of the action
         and additional information (e.g., the probability of selection).
-    
-    Notes
-    -----
-    If both `prices` and `action_space` are provided, a ValueError is raised. If neither is provided,
-    `prices` is generated using `ticksize`, `low`, and `high`. If only one of them is provided, the other
-    is derived from it.
     """
 
     def __init__(
@@ -63,11 +61,11 @@ class Maker(Agent):
             Allow the bid price to be equal to the ask price.
             Not used if `action_space` is given.
         prices : np.ndarray or None, default=None
-            Discrete set of possible prices.
+            Set of possible prices.
         action_space : np.ndarray or None, default=None
             All possible (ask_price, bid_price) pairs.
         decimal_places : int, default=2
-            Number of decimal places to which rewards are rounded.
+            Number of decimal places to which rewards and prices are rounded.
         name : str, default='maker'
             Name assigned to the agent.
         seed : int or None, default=None
@@ -79,12 +77,25 @@ class Maker(Agent):
             If both `prices` and `action_space` are provided.
         """
         super().__init__(name, seed)
+        
         self.ticksize = ticksize
+        """ Minimum increment for prices.
+        """
         self.low = low
+        """  Minimum price allowed.
+        """
         self.high = high
+        """ Maximum price allowed.
+        """
         self.decimal_places = decimal_places
+        """ Number of decimal places.
+        """
 
         op = (lambda a, b: a >= b) if eq else (lambda a, b: a > b)
+
+        self.prices: np.ndarray
+        """ Set of possible prices.
+        """
 
         if prices is not None and action_space is not None:
             raise ValueError('Cannot specify both `prices` and `action_space`')
@@ -99,6 +110,8 @@ class Maker(Agent):
             self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if op(ask, bid)])
         
         self.last_action = None
+        """ Last chosen action.
+        """
         return
 
 
@@ -148,7 +161,7 @@ class Maker(Agent):
     @abstractmethod
     def act(self, observation: Dict) -> Dict:
         """
-        Select an ask-bid strategy.
+        Selects an ask-bid strategy.
 
         Parameters
         ----------
@@ -157,7 +170,7 @@ class Maker(Agent):
 
         Returns
         -------
-        action : dict
+        action : dict of str to float
             A dictionary containing:
             - 'ask_price': the ask price proposed by the agent.
             - 'bid_price': the bid price proposed by the agent.

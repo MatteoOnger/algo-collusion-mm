@@ -29,11 +29,11 @@ class NoPassTrader(Trader):
 
     def act(self, observation: Dict) -> Dict:
         """
-        Decide to BUY, SELL based on the current market observation.
+        Decides to BUY, SELL based on the current market observation.
 
         Parameters
         ----------
-        observation : dict
+        observation : dict of str to float
             A dictionary containing:
             - 'true_value': float.
             - 'min_ask_price': float.
@@ -41,7 +41,7 @@ class NoPassTrader(Trader):
 
         Returns
         -------
-        action : dict
+        action : dict of str to GM2Enc.TraderAction
             A dictionary with key 'operation' and value `GM2Enc.TraderAction`.
         """
         true_value = observation['true_value']
