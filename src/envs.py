@@ -44,6 +44,8 @@ class GMEnv(ptz.AECEnv):
         Agent type for each agent (MAKER or TRADER).
     episode : int
         Current episode number (incremented after each trader action).
+    trader : int
+        Index of the currently active trader in the `self.traders` list.
     agents : list of str
         Agents currently active in the environment (all makers + one trader).
     agent_selection : str
@@ -110,6 +112,7 @@ class GMEnv(ptz.AECEnv):
         n_traders: int,
         low: float = 0.0,
         high: float = 1.0,
+        agents_action_space: Dict[str, np.ndarray] = dict(), 
         decimal_places: int = 2,
         render_mode: Literal['ascii', 'human'] = 'ascii'
     ):
@@ -130,6 +133,10 @@ class GMEnv(ptz.AECEnv):
             Minimum possible price or asset value.
         high : float, default=1.0
             Maximum possible price or asset value.
+        agents_action_space: dict of str to np.ndarray, default={}
+            Mapping from agent names to their respective action spaces. Each action space must be 
+            a subset or a discretization of the environment's action space (i.e., of `self`). 
+            This parameter is used only to inform informed agents.
         decimal_places : int, default=2
             Number of decimal places to which rewards are rounded.
         render_mode : {'ascii', 'human'}, default='ascii'
@@ -156,6 +163,7 @@ class GMEnv(ptz.AECEnv):
         self.n_traders = n_traders
         self.low = low
         self.high = high
+        self.agents_action_space = agents_action_space
         self.decimal_places = decimal_places
         self.render_mode = render_mode
 
@@ -298,31 +306,47 @@ class GMEnv(ptz.AECEnv):
 
     def inform(self, agent: str) -> Dict:
         """
-        Returns additional information for the given agent.
-        Informed agents receive the true value, minimum ask, and maximum bid.
-        Uninformed agents receive an empty dictionary.
+        Provides additional information to the given agent based on their role and knowledge.
+
+        Informed market makers receive:
+        - Their agent index.
+        - The true asset value.
+        - The list of current (ask, bid) prices.
+        - The rewards corresponding to each possible action in their action space.
+
+        Uninformed agents (e.g., traders or uninformed makers) receive an empty dictionary.
 
         Parameters
         ----------
         agent : str
-            Name of the agent.
-        
+            Name of the agent requesting information.
+
         Returns
         -------
-        : dict
-            Additional information for the agent.
+        info : dict
+            A dictionary containing additional information if the agent is an informed maker;
+            otherwise, an empty dictionary.
+            Keys (for informed makers) include:
+                - 'agent_index' (int): Index of the agent.
+                - 'true_value' (float): The true value of the asset.
+                - 'actions' (np.ndarray): Array of (ask, bid) action pairs.
+                - 'rewards' (np.ndarray): Rewards corresponding to each action.
         """
         i = self.agent_name_mapping[agent]
 
         if self._ismaker(agent) and self._isinformed(agent):
+            action_space = self.agents_action_space[agent]
+            
+            ask_prices = np.tile(self._ask_prices, (len(action_space), 1))
+            bid_prices = np.tile(self._bid_prices, (len(action_space), 1))
+            ask_prices[:, i] = action_space[:, 0]
+            bid_prices[:, i] = action_space[:, 1]
+
             info = {
+                'agent_index': i,
                 'true_value': self.true_value,
                 'actions': np.array(list(zip(self._ask_prices, self._bid_prices)), dtype=np.float64),
-                'min_ask_price': float(np.min(np.delete(self._ask_prices, i))) if self.n_makers > 1 else self.high,
-                'max_bid_price': float(np.max(np.delete(self._bid_prices, i))) if self.n_makers > 1 else self.low,
-                'trader_action': self.trader_action,
-                'maker_reward': next((v for v in self.rewards.values() if v != 0), None),
-                'trader_reward': next((v for v in reversed(list(self.rewards.values())) if v != 0), None)
+                'rewards': self._compute_rewards(self.trader_action, ask_prices, bid_prices)[:, i]
             }
         else:
             info = {}
@@ -377,14 +401,15 @@ class GMEnv(ptz.AECEnv):
         observations : dict
             Initial observations for all agents.
         infos : dict
-            Additional information for each agent (empty).
+            Additional information for each agent.
         """
         self._np_random, self._np_random_seed = gym.utils.seeding.np_random(seed)
 
         self.episode = 0
         self.true_value = self.generate_vt()
 
-        self.agents = self.makers + [str(self._np_random.choice(self.traders))]
+        self.trader = self._np_random.integers(0, self.n_traders)
+        self.agents = self.makers + [self.traders[self.trader]]
         self._agent_selector = AgentSelector(self.agents)
         self.agent_selection = self._agent_selector.next()
 
@@ -431,7 +456,7 @@ class GMEnv(ptz.AECEnv):
         truncations : dict
             Boolean flags indicating if agents were truncated (episode limit reached).
         infos : dict
-            Additional info (empty).
+            Additional info.
 
         Raises
         ------
@@ -441,7 +466,7 @@ class GMEnv(ptz.AECEnv):
 
         Notes
         -----
-        For market makers, the action is a dictionary containing 'ask' and 'bid' 
+        For market makers, the action is a dictionary containing 'ask_price' and 'bid_price' 
         values. These values can be passed either as scalar floats (e.g., 0.8) or 
         as NumPy arrays with a single float entry (e.g., np.array([0.8])) — both 
         formats are accepted.
@@ -489,7 +514,7 @@ class GMEnv(ptz.AECEnv):
             self.rewards = {agent: 0 for agent in self.possible_agents}
         
         # Update observations
-        # Infos, truncations and terminations will be updated onyl if the episode ends
+        # Infos, truncations and terminations will be updated only if the episode ends
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
 
         # Render the environment
@@ -501,7 +526,8 @@ class GMEnv(ptz.AECEnv):
             self.episode += 1
             #self._true_value = self.val_gen()
 
-            self.agents = self.makers + [str(self._np_random.choice(self.traders))] if self.episode < self.n_episodes else []
+            self.trader = self._np_random.integers(0, self.n_traders)
+            self.agents = self.makers + [self.traders[self.trader]] if self.episode < self.n_episodes else []
 
             self.infos = {'episode_finished': True} | {agent: self.inform(agent) for agent in self.possible_agents}
             self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
@@ -580,6 +606,70 @@ class GMEnv(ptz.AECEnv):
         except Exception :
             return None, False
         return action, ok
+    
+    
+    def _compute_rewards(
+        self,
+        trader_action: 'GMEnv.TraderAction|None' = None,
+        ask_prices: np.ndarray|None = None,
+        bid_prices: np.ndarray|None = None
+    ) -> np.ndarray:
+        """
+        Computes the rewards for the trader and selected market makers based on the action taken.
+
+        Depending on the `trader_action`, the reward is computed either as the difference 
+        between the true value and the best available price (min ask or max bid), or zero 
+        if the trader passes. The reward is then distributed between the trader and the 
+        selected makers who offered the best price.
+
+        If arguments are not provided, internal state is used to fetch the latest
+        prices and trader action.
+
+        Parameters
+        ----------
+        trader_action : GMEnv.TraderAction or None, optional
+            The action taken by the trader. If None, the internal `self.trader_action` is used.
+        ask_prices : np.ndarray or None, optional
+            Array of ask prices. If None, uses `self._ask_prices`.
+        bid_prices : np.ndarray or None, optional
+            Array of bid prices. If None, uses `self._bid_prices`.
+
+        Returns
+        -------
+        rewards : np.ndarray
+            Array of rewards assigned to each agent (trader and market makers). 
+            Shape is (..., max_num_agents) and squeezed before returning.
+        """
+        if trader_action is None or ask_prices is None or bid_prices is None:
+            trader_action = self.trader_action
+            ask_prices = self._ask_prices
+            bid_prices = self._bid_prices
+
+            min_ask_price = np.array([self.min_ask_price])
+            max_bid_price = np.array([self.max_bid_price])
+        else:
+            min_ask_price = np.min(ask_prices, axis=-1, keepdims=(ask_prices.ndim == 1))
+            max_bid_price = np.max(bid_prices, axis=-1, keepdims=(ask_prices.ndim == 1))
+
+        shape = ((1,) if ask_prices.ndim == 1 else ask_prices.shape[:-1]) + (self.max_num_agents,)
+        rewards = np.zeros(shape, dtype=np.float64)       
+
+        if trader_action is None:
+            raise ValueError('trader_action is None')
+        elif trader_action == GMEnv.TraderAction.PASS:
+            return rewards    
+        elif trader_action == GMEnv.TraderAction.BUY:
+            reward = self.true_value - min_ask_price
+            selected_makers_idx = np.where(ask_prices == min_ask_price[:, None])
+            count_selected_makers = np.sum(ask_prices == min_ask_price[:, None], axis=-1)
+        else:
+            reward = max_bid_price - self.true_value
+            selected_makers_idx = np.where(bid_prices == max_bid_price[:, None])
+            count_selected_makers = np.sum(bid_prices == max_bid_price[:, None], axis=-1)
+
+        rewards[:, self.trader + self.n_makers] = reward
+        rewards[selected_makers_idx[0], selected_makers_idx[1]] = (- reward / count_selected_makers)[selected_makers_idx[0]]
+        return np.round(rewards.squeeze(), self.decimal_places)
 
 
     def _ismaker(self, agent: str) -> bool:

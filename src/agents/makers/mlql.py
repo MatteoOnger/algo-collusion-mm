@@ -3,7 +3,6 @@ import numpy as np
 from typing import Dict
 
 from .maker import Maker
-from ...envs import GMEnv
 
 
 
@@ -179,50 +178,16 @@ class MakerInformedMLQL(MakerMLQL):
             The reward assigned to the agent for the most recent action.
         info : dict
             A dictionary containing environment feedback, with keys:
-                - 'true_value': The true value of the traded asset.
-                - 'min_ask_price': The minimum ask price among all makers.
-                - 'max_bid_price': The maximum bid price among all makers.
-                - 'trader_action': The action taken by the trader.
-                - 'maker_reward': The reward assigned to makers.
-                - 'trader_reward': The reward assigned to the trader.
+                - 'rewards' (np.ndarray): Rewards corresponding to each action
+                    in the action space of this agent.
         """
         if self.last_action is None:
             return
 
-        true_value = info['true_value']
-        min_ask_price = info['min_ask_price']
-        max_bid_price = info['max_bid_price']
-        trader_action = info['trader_action']
-        maker_reward = info['maker_reward']
-        trader_reward = info['trader_reward']
-        
-        n_selected_makers = abs(trader_reward) // abs(maker_reward) if maker_reward != 0 else 0
+        rewards = info['rewards']
 
-        for idx, action in enumerate(self.action_space):
-            ask_price = action[0]
-            bid_price = action[1]
-
-            ask_reward = ask_price - true_value
-            bid_reward = true_value - bid_price
-
-            if idx == self.last_action:
-                rwd = reward
-            elif trader_action == GMEnv.TraderAction.PASS:
-                rwd = 0
-            elif ask_price > min_ask_price and bid_price < max_bid_price:
-                rwd = 0
-            elif ask_price < min_ask_price or bid_price > max_bid_price:
-                rwd = min(ask_reward, bid_reward)
-            else:
-                if trader_action == GMEnv.TraderAction.BUY and ask_price == min_ask_price:
-                    rwd = ask_reward / (n_selected_makers + 1 if reward == 0 else n_selected_makers)
-                elif trader_action == GMEnv.TraderAction.SELL and bid_price == max_bid_price:
-                    rwd = bid_reward / (n_selected_makers + 1 if reward == 0 else n_selected_makers)
-                else:
-                    rwd = 0
-            
-            rwd = round(rwd, self.decimal_places)
-            self.Q[idx] += self.alpha * (rwd + self.gamma * np.max(self.Q) - self.Q[idx])
+        for idx, reward in enumerate(rewards):
+            self.Q[idx] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[idx])
 
         self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         self.history.record_reward(reward)
