@@ -473,18 +473,23 @@ class GMEnv(ptz.AECEnv):
         i = self.agent_name_mapping[agent]
 
         if self._ismaker(agent) and self._isinformed(agent):
-            action_space = self.agents_action_space[agent]
-            
-            ask_prices = np.tile(self._ask_prices, (len(action_space), 1))
-            bid_prices = np.tile(self._bid_prices, (len(action_space), 1))
-            ask_prices[:, i] = action_space[:, 0]
-            bid_prices[:, i] = action_space[:, 1]
+            if agent in self.agents_action_space.keys():
+                action_space = self.agents_action_space[agent]
+                
+                ask_prices = np.tile(self._ask_prices, (len(action_space), 1))
+                bid_prices = np.tile(self._bid_prices, (len(action_space), 1))
+                ask_prices[:, i] = action_space[:, 0]
+                bid_prices[:, i] = action_space[:, 1]
+
+                rewards = self._compute_rewards(self.trader_action, ask_prices, bid_prices)[:, i] 
+            else:
+                rewards = None
 
             info = {
                 'agent_index': i,
                 'true_value': self.true_value,
                 'actions': np.array(list(zip(self._ask_prices, self._bid_prices)), dtype=np.float64),
-                'rewards': self._compute_rewards(self.trader_action, ask_prices, bid_prices)[:, i]
+                'rewards': rewards
             }
         else:
             info = {}
@@ -794,7 +799,7 @@ class GMEnv(ptz.AECEnv):
             selected_makers_idx = np.where(bid_prices == max_bid_price[:, None])
             count_selected_makers = np.sum(bid_prices == max_bid_price[:, None], axis=-1)
 
-        rewards[:, self.trader + self.n_makers] = reward
+        rewards[:, self.agent_name_mapping[self.trader]] = reward
         rewards[selected_makers_idx[0], selected_makers_idx[1]] = (- reward / count_selected_makers)[selected_makers_idx[0]]
         return np.round(rewards.squeeze(), self.decimal_places)
 
