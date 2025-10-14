@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Dict
+from typing import Callable, Dict
 
 from .maker import Maker
 
@@ -8,40 +8,33 @@ from .maker import Maker
 
 class MakerEXP3(Maker):
     """
-    Market maker for the GM environment based on the Exp3.
+    Market maker for the GM environment based on the Exp3 algorithm.
 
     This agent maintains a discrete set of possible (ask, bid) strategies and selects one at
-    each step according to a probability distribution computed by the Exp3 algorithm.
-    The distribution balances exploitation of historically successful strategies and
-    exploration of less tried strategies, controlled by the `epsilon` parameter.
+    each step according to a probability distribution computed using Exp3. The algorithm 
+    balances exploitation of historically high-reward strategies and exploration of others, 
+    controlled by the `epsilon` parameter.
 
-    The agent receives a reward at each round and scales it into the [0, 1] interval
-    using the `min_reward` and `max_reward` parameters. This normalization is required
-    by the Exp3 algorithm to ensure correct weight updates.
+    The agent receives a reward at each step and uses a user-provided `scale_rewards` 
+    function to normalize the reward into a suitable range (typically [0, 1]) as required 
+    by Exp3. This allows flexible reward normalization depending on the environment.
 
     Attributes
     ----------
     epsilon : float
         Exploration parameter of Exp3, in the range (0, 1].
-    min_reward : float
-            Minimum possible reward that can be collected per round.
-    max_reward : float
-            Maximum possible reward that can be collected per round.
+    scale_rewards : Callable[[float], float]
+        A function that scales raw rewards into a normalized range (e.g., [0, 1]).
     weights : np.ndarray
-        Current Exp3 weights for each arm, initially all zeros.
+        Current Exp3 weights for each arm.
     probs : np.ndarray
-        Current probability distribution over arms, computed from weights and epsilon.
+        Probability distribution over actions, computed from weights and epsilon.
     
     Notes
     -----
-    - The reward is scaled using:
-
-          scaled_reward = (raw_reward - min_reward) / (max_reward - min_reward)
-
-      This assumes raw rewards lie within the [`min_reward`, `max_reward`] interval.
-    - Agents are stateless, so past actions and rewards are not used for state updates,
-      but only for computing learning signals.
-    - This implementation follows the framework from Lattimore (2020).
+    - This implementation is stateless across episodes—only current observations and
+      scaled rewards are used for updates.
+    - Based on the adversarial bandit framework described in Lattimore & Szepesvári (2020).
     
     See Also
     --------
@@ -56,8 +49,7 @@ class MakerEXP3(Maker):
     def __init__(
         self,
         epsilon: float,
-        min_reward: float,
-        max_reward: float,
+        scale_rewards: Callable[[float], float] = lambda r: r,
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -73,10 +65,10 @@ class MakerEXP3(Maker):
         ----------
         epsilon : float
             Exploration parameter of Exp3, in the range (0, 1].
-        min_reward : float
-            Minimum possible reward that can be collected per round.
-        max_reward : float
-            Maximum possible reward that can be collected per round.
+        scale_rewards : callable[[float], float], default=lambda r: r
+            Function to scale raw rewards into a normalized range suitable for Exp3.
+            For example, to scale rewards into [0, 1], use a function like:
+            `lambda r: (r - min_r) / (max_r - min_r)`.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -96,31 +88,11 @@ class MakerEXP3(Maker):
             Name assigned to the agent.
         seed : int or None, default=None
             Seed for the internal random generator.
-
-        Raises
-        ------
-        ValueError
-            If `min_reward` is not strictly less than `max_reward`.
-
-        Notes
-        -----
-        The `min_reward` and `max_reward` parameters define the expected reward range
-        and are used to normalize the reward into the [0, 1] interval for compatibility
-        with the EXP3 algorithm. The scaled reward is computed as:
-
-            scaled_reward = (raw_reward - min_reward) / (max_reward - min_reward)
-
-        If the raw reward falls outside of [min_reward, max_reward], the scaling
-        may produce values outside the [0, 1] range.
         """
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
-        if min_reward >= max_reward:
-                raise ValueError(f'`min_reward` ({min_reward}) must be strictly less than `max_reward` ({max_reward})')
-        
         self.epsilon = epsilon
-        self.min_reward = min_reward
-        self.max_reward = max_reward
+        self.scale_rewards = scale_rewards
         self.weights = np.zeros(self.n_arms, dtype=np.float64)
         return
 
@@ -178,9 +150,8 @@ class MakerEXP3(Maker):
     def update(self, reward: float, info: Dict) -> None:
         if self.last_action is None:
             return
-        
-        scaled_reward = (reward - self.min_reward) / (self.max_reward - self.min_reward)
-        scaled_reward = np.clip(scaled_reward, 0.0, 1.0)
+
+        scaled_reward = self.scale_rewards(reward)
 
         arm_idx, prob = self.last_action
         self.weights[arm_idx] += 1 - (1 - scaled_reward) / prob
