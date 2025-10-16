@@ -26,7 +26,7 @@ Numerical tolerance used for floating-point comparisons.
 
 _joint_action_cache: Dict[Tuple[int, ...], np.ndarray] = {}
 """
-INTERNAL USE ONLY — DO **NOT** TOUCH
+**INTERNAL USE ONLY — DO NOT TOUCH**
 
 Internal cache mapping action space shapes to their corresponding precomputed joint action arrays.
 
