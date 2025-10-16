@@ -96,7 +96,7 @@ def compute_joint_actions_and_rewards(action_spaces: List[np.ndarray], true_valu
     """
     n_agents = len(action_spaces)
 
-    all_combinations = np.array(list(product(action_spaces[0], action_spaces[1], action_spaces[2])))
+    all_combinations = np.array(list(product(*action_spaces)))
     all_combinations = np.transpose(all_combinations, (0, 2, 1))
 
     min_ask_prices = np.min(all_combinations[:, 0], axis=-1)
