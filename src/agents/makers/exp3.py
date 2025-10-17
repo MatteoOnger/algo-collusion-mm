@@ -106,7 +106,9 @@ class MakerEXP3(Maker):
     def probs(self) -> np.ndarray:
         """ Current probability distribution over actions.
         """
-        return np.exp(self.weights * self.epsilon) / np.sum(np.exp(self.weights * self.epsilon))
+        x = self.epsilon * self.weights
+        x_stable = x - np.max(x)
+        return np.exp(x_stable) / np.sum(np.exp(x_stable))
 
 
     @staticmethod
