@@ -3,7 +3,7 @@
 import numpy as np
 
 from itertools import product
-from typing import Dict, List, Tuple
+from typing import Dict, List, Literal, Tuple
 
 
 
@@ -66,7 +66,11 @@ def _get_joint_actions(shape: Tuple[int, ...]) -> np.ndarray:
 
 
 
-def compute_joint_actions_and_rewards(action_spaces: List[np.ndarray], true_value: float) -> Tuple[np.ndarray, np.ndarray]:
+def compute_joint_actions_and_rewards(
+    action_spaces: List[np.ndarray],
+    true_value: float,
+    tie_breaker: Literal['buy', 'sell', 'rand'] = 'rand'
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the joint action space and resulting rewards for each maker in a trading scenario.
 
@@ -83,6 +87,11 @@ def compute_joint_actions_and_rewards(action_spaces: List[np.ndarray], true_valu
         the ask and bid prices set by each maker for every action.
     true_value : float
         The true value of the traded asset, used by the trader to decide whether to buy or sell.
+    tie_breaker : {'buy', 'sell', 'rand', 'alt'}
+        Rule used to resolve ties between equally favorable prices.
+        - 'buy': always prefer buying in case of tie.
+        - 'sell': always prefer selling in case of tie.
+        - 'rand': break ties randomly (50/50).
 
     Returns
     -------
@@ -112,7 +121,11 @@ def compute_joint_actions_and_rewards(action_spaces: List[np.ndarray], true_valu
         ) & (
             (true_value - min_ask_prices) < (max_bid_prices - true_value)
     )] = 1
-    selected_operation[np.isclose((true_value - min_ask_prices), (max_bid_prices - true_value), atol=TOL)] = 2
+
+    if tie_breaker == 'rand':
+        selected_operation[np.isclose((true_value - min_ask_prices), (max_bid_prices - true_value), atol=TOL)] = 2
+    elif tie_breaker == 'sell':
+        selected_operation[np.isclose((true_value - min_ask_prices), (max_bid_prices - true_value), atol=TOL)] = 1
 
     # Op. 0 and 1: makers selected when trader has a clear buy or sell preference
     selected_makers = np.where(
