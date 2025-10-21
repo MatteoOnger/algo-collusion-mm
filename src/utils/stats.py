@@ -1,5 +1,7 @@
 import numpy as np
 
+from typing import Tuple
+
 
 
 class OnlineVectorStats:
@@ -14,13 +16,13 @@ class OnlineVectorStats:
     Technometrics, 4(3), 419-420.
     """
 
-    def __init__(self, dim: int):
+    def __init__(self, dim: int|Tuple[int, ...]):
         """
         Initialize the statistics tracker.
 
         Parameters
         ----------
-        dim : int
+        dim : int or tuple of ints
             Dimension of the input vectors.
         """
         self.n = 0

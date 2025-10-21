@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import pickle
@@ -77,7 +78,7 @@ class ExperimentStorage:
         return loaded
 
 
-    def print_and_save(self, text: str) -> None:
+    def print_and_save(self, text: str, silent: bool = False) -> None:
         """
         Print and append a single line of text to the RESULTS.txt file in the base path.
 
@@ -91,6 +92,8 @@ class ExperimentStorage:
         ----------
         text : str
             The line of text to be printed and appended to the results file.
+        silent : bool
+            If True, don't print to stdout, just save.
 
         Raises
         ------
@@ -100,7 +103,9 @@ class ExperimentStorage:
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
 
-        print(text)
+        if not silent:
+            print(text)
+        
         file_path = os.path.join(self.base_path, 'RESULTS.txt')
         with open(file_path, 'a', encoding='utf-8') as f:
             f.write(text + '\n')
@@ -148,15 +153,17 @@ class ExperimentStorage:
         # Save objects
         if objects is not None:
             for obj in objects:
-                for attr, value in obj.__dict__.items():
-                    if callable(value) and getattr(value, '__name__', '') == '<lambda>':
-                        setattr(obj, attr, None)
+                obj_copy = copy.deepcopy(obj)
 
-                file_name = getattr(obj, 'name', str(id(obj)))
+                for attr, value in obj_copy.__dict__.items():
+                    if callable(value) and getattr(value, '__name__', '') == '<lambda>':
+                        setattr(obj_copy, attr, None)
+
+                file_name = getattr(obj_copy, 'name', str(id(obj_copy)))
                 file_path = os.path.join(exp_dir, f'{file_name}.pkl')
 
                 with open(file_path, 'wb') as f:
-                    pickle.dump(obj, f)
+                    pickle.dump(obj_copy, f)
         
         # Save figure
         if figure is not None:
