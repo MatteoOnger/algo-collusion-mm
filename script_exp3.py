@@ -188,7 +188,7 @@ def multiple_runs(
     plots.plot_makers_cci(
         episodes_per_window = w,
         cci = stats_cci.get_mean(),
-        std = stats_cci.get_mean(),
+        std = stats_cci.get_std(),
         title = f'Mean Calvano Collusion Index (CCI) - Epsilon: {list(agents.values())[0].epsilon}',
         agents_name = env.makers,
         ax = ax
