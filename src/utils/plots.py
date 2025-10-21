@@ -494,6 +494,8 @@ def plot_makers_best_actions(
 def plot_makers_cci(
     episodes_per_window: int,
     cci: np.ndarray,
+    std: np.ndarray|None = None,
+    title: str = 'Calvano Collusion Index (CCI) per Agent',
     agents_name: List[str]|None = None,
     ax: plt.Axes|None = None,
 ) -> plt.Axes:
@@ -509,6 +511,11 @@ def plot_makers_cci(
         Number of episodes grouped in each window.
     cci : np.ndarray
         Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
+    std : np.ndarray or None
+        Array of shape (n_agents, n_windows) containing the standatd deviation of the CCI per agent and per window.
+        If None, only the CCI is plotted. 
+    title : str, default='Calvano Collusion Index (CCI) per Agent'
+        Title of the plot.
     agents_name : list of str or None, default=None
         Names of the agents, used as labels in the legend.
     ax : matplotlib.axes.Axes or None, default=None
@@ -528,6 +535,8 @@ def plot_makers_cci(
     """
     if ax is None:
         _, ax = plt.subplots()
+    if std is None:
+        std = [None] * len(cci)
     if agents_name is None:
         agents_name = [f'unknown_{i}' for i in range(cci.size)]
 
@@ -535,14 +544,22 @@ def plot_makers_cci(
 
     cmap = plt.get_cmap("tab10")
 
-    for idx, (agent, series) in enumerate(zip(agents_name, cci)):
+    for idx, (agent, series, std_dev) in enumerate(zip(agents_name, cci, std)):
         ax.plot(x, series, label=agent.capitalize(), color=cmap(idx % 10), marker='*')
+        if std_dev is not None:
+            ax.fill_between(
+                x,
+                series - std_dev,
+                series + std_dev,
+                color = cmap(idx % 10),
+                alpha = 0.3
+            )
     
     ax.plot(x, cci.mean(axis=0), label='Average', color='red', ls='--')
 
     ax.set_xlabel('Episode')
     ax.set_ylabel('Collusion Index')
-    ax.set_title(f'Calvano Collusion Index (CCI) per Agent')
+    ax.set_title(title)
     ax.legend()
     ax.grid(True)
     return ax
