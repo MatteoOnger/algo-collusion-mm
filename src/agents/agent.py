@@ -107,6 +107,27 @@ class Agent(ABC):
         return indexes.reshape(shape)
 
 
+    def update_seed(self, seed: int | None = None) -> None:
+        """
+        Update the internal seed and reinitialize the random number generator (PRNG).
+
+        This method updates the agent's internal seed. If a specific seed is provided, it is used to
+        initialize the random number generator. If no seed is provided (i.e., seed is None), a new 
+        random seed is generated from entropy.
+
+        Parameters
+        ----------
+        seed : int or None, default=None
+            New seed to set for the agent's random number generator. If None, a random seed is generated.
+        """
+        self._seed = seed
+        self._rng = np.random.default_rng(self._seed)
+
+        if self._seed is None:
+            self._seed = self._rng.bit_generator.seed_seq.entropy
+        return
+
+
     def reset(self) -> None:
         """
         Reset the internal state of the agent.
