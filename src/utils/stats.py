@@ -7,8 +7,8 @@ class OnlineVectorStats:
     Tracks the running mean and standard deviation for each component 
     of input vectors using Welford's algorithm.
 
-    See Also
-    --------
+    References
+    ----------
     - Welford, B. P. (1962). Note on a method for
     calculating corrected sums of squares and products.
     Technometrics, 4(3), 419-420.

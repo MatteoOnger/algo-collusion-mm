@@ -35,8 +35,8 @@ class MakerEXP3(Maker):
     -----
     - Based on the adversarial bandit framework described in Lattimore & Szepesvári (2020).
     
-    See Also
-    --------
+    References
+    ----------
     - Lattimore, T., & Szepesvári, C. (2020). Bandit algorithms. Cambridge University Press.
     - Auer, P., Cesa-Bianchi, N., Freund, Y., & Schapire, R. E. (2002).
     The nonstochastic multiarmed bandit problem. SIAM journal on computing, 32(1), 48-77.

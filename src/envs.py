@@ -90,8 +90,8 @@ class GMEnv(ptz.AECEnv):
     trader_action : GM2Env.TraderAction or None
         Action taken by the trader in the current step (None, BUY, SELL, or PASS).
 
-    See Also
-    --------
+    References
+    ----------
     - Glosten, L. R., & Milgrom, P. R. (1985). Bid, ask and transaction prices
     in a specialist market with heterogeneously informed traders. 
     Journal of Financial Economics, 14(1), 71-100.

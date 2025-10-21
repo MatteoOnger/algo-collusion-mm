@@ -228,8 +228,8 @@ def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fa
     : bool
         True if the given strategy profile is a coarse correlated equilibrium, False otherwise.
     
-    See Also
-    --------
+    References
+    ----------
     - Barman, S., & Ligett, K. (2015). Finding any nontrivial coarse correlated equilibrium is hard.
     ACM SIGecom Exchanges, 14(1), 76-79.
     """
@@ -294,8 +294,8 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
     : bool
         True if the given strategy profile satisfies the conditions of a correlated equilibrium.
     
-    See Also
-    --------
+    References
+    ----------
     - Aumann, R. J. (1974). Subjectivity and correlation in randomized strategies.
     Journal of mathematical Economics, 1(1), 67-96.
     """
@@ -338,72 +338,76 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
                     if fast:
                         return False
                     flag = False
-
     return flag
 
 
-def is_ne(payoffs: np.ndarray, strategies: List[np.ndarray], verbose: bool = False, fast: bool = True) -> bool:
+def is_ne(payoffs: np.ndarray, strategies: np.ndarray, verbose: bool = False, fast: bool = True) -> bool:
     """
-    Check whether a given mixed strategy profile is a Nash Equilibrium.
-
-    A profile is a Nash Equilibrium if no player can improve their expected payoff by deviating
-    to any pure strategy, assuming all players act independently according to their mixed strategies.
+    Check whether a given strategy profile (product of mixed strategies) is a Nash Equilibrium.
 
     Parameters
     ----------
     payoffs : np.ndarray
-        Array of shape (*action_spaces, n_players), giving the payoff to each player for every joint action.
-    strategies : list of np.ndarray
-        List of length `n_players`, where each array contains the mixed strategy of a player and sums to 1.
+        Array of shape (*action_spaces, n_players), giving the payoff to each player for each joint action.
+    strategies : np.ndarray
+        Array of shape (n_players, max_actions_i), giving each player's mixed strategy.
+        Each player's strategy must sum to 1.
     verbose : bool, default=False
-        If True, prints a message for each player that has an incentive to deviate.
+        If True, prints information when a profitable deviation is detected.
     fast : bool, default=True
-        If True, returns immediately when a deviation is found. Otherwise, checks all players before returning.
+        If True, returns immediately after the first violation. If False, checks all players and actions.
 
     Returns
     -------
     : bool
-        True if the given strategy profile is a Nash Equilibrium, False otherwise.
+        True if the given strategy profile is a Nash Equilibrium.
     
-    See Also
-    --------
+    References
+    ----------
     - Nash, J. F. (2024). Non-cooperative games.
     In The Foundations of Price Theory Vol 4 (pp. 329-340). Routledge.
     """
-    n_players = len(strategies)
-    shape = payoffs.shape[:-1]
+    n_players = payoffs.shape[-1]
+    action_spaces = payoffs.shape[:-1]
 
-    # Build full joint probability distribution from independent strategies
-    grid = np.meshgrid(*[np.arange(s) for s in shape], indexing='ij')
-    joint_prob = np.ones(shape)
-    for i, strat in enumerate(strategies):
-        joint_prob *= strat[grid[i]]
+    # Normalize each player's strategy just in case
+    for i in range(n_players):
+        strategies[i] /= strategies[i].sum()
+
+    # Get all joint actions
+    joint_actions = _get_joint_actions(action_spaces)  # shape (num_joint_actions, n_players)
+    num_joint_actions = joint_actions.shape[0]
+
+    # Compute the probability of each joint action as product of marginal probs
+    joint_probs = np.ones(num_joint_actions)
+    for i in range(n_players):
+        joint_probs *= strategies[i, joint_actions[:, i]]
+
+    payoffs_flat = payoffs.reshape(-1, n_players)  # flatten joint actions
 
     flag = True
     for i in range(n_players):
-        # Compute expected payoff for current strategy of player i
-        expected_payoff = np.sum(joint_prob * payoffs[..., i])
+        n_actions = action_spaces[i]
 
-        for a_i_prime in range(shape[i]):
-            # Construct strategy where player i always plays a_i_prime
-            grid_prime = list(grid)
-            grid_prime[i] = np.full_like(grid[i], a_i_prime)  # fix to a_i_prime
+        # Compute expected payoff for player i under current strategy
+        expected_payoff = np.sum(joint_probs * payoffs_flat[:, i])
 
-            joint_prob_prime = np.ones_like(joint_prob)
-            for j, strat in enumerate(strategies):
+        # For each alternative action, check if deviation improves payoff
+        for a_i_prime in range(n_actions):
+            # Construct deviated joint distribution where player i unilaterally plays a_i_prime
+            deviated_joint_probs = np.ones(num_joint_actions)
+            for j in range(n_players):
                 if j == i:
-                    joint_prob_prime *= 1  # deterministic
+                    deviated_joint_probs *= (joint_actions[:, j] == a_i_prime).astype(float)
                 else:
-                    joint_prob_prime *= strat[grid_prime[j]]
+                    deviated_joint_probs *= strategies[j, joint_actions[:, j]]
 
-            expected_deviation_payoff = np.sum(joint_prob_prime * payoffs[..., i])
+            deviated_expected_payoff = np.sum(deviated_joint_probs * payoffs_flat[:, i])
 
-            if expected_payoff + TOL < expected_deviation_payoff:
+            if expected_payoff + TOL < deviated_expected_payoff:
                 if verbose:
-                    print(f'Player {i} can profitably deviate to pure action {a_i_prime}: '
-                          f'{expected_payoff:.4f} < {expected_deviation_payoff:.4f}')
+                    print(f'Player {i} has incentive to deviate to {a_i_prime}: {expected_payoff:.4f} < {deviated_expected_payoff:.4f}')
                 if fast:
                     return False
-                else:
-                    flag = False
+                flag = False
     return flag
