@@ -3,19 +3,19 @@ import numpy as np
 import os
 import time
 
-import src.utils.plots as plots
-import src.utils.storage as storage
+import algo_collusion_mm.utils.plots as plots
+import algo_collusion_mm.utils.storage as storage
 
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
-from src.agents.agent import Agent
-from src.agents.makers.exp3 import MakerEXP3
-from src.agents.traders.nopass import NoPassTrader
-from src.envs import GMEnv
-from src.utils.common import get_calvano_collusion_index
-from src.utils.stats import OnlineVectorStats
+from algo_collusion_mm.agents.agent import Agent
+from algo_collusion_mm.agents.makers.exp3 import MakerEXP3
+from algo_collusion_mm.agents.traders.nopass import NoPassTrader
+from algo_collusion_mm.envs import GMEnv
+from algo_collusion_mm.utils.common import get_calvano_collusion_index
+from algo_collusion_mm.utils.stats import OnlineVectorStats
 
 
 

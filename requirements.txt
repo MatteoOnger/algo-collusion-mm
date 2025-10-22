@@ -1,7 +1,7 @@
 # Requirements equivalent to those specified in environment.yml
 
 # Python version
-# python=3.12
+# python>=3.12
 
 # Conda packages translated to pip
 matplotlib

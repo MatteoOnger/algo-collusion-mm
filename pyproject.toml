@@ -1,0 +1,33 @@
+[build-system]
+requires = ['setuptools>=61.0']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'algo-collusion-mm'
+version = '0.1.0'
+description = 'Algorithmic collusion in market making'
+readme = 'README.md'
+requires-python = '>=3.12'
+license = {text = 'MIT'}
+authors = [
+  { name = 'Matteo Onger', email = 'matteo.onger@studenti.unimi.it' }
+]
+classifiers = [
+  'Programming Language :: Python :: 3',
+  'License :: OSI Approved :: MIT License',
+  'Operating System :: OS Independent'
+]
+dependencies = [
+    'matplotlib',
+    'numpy',
+    'ipykernel',
+    'ipympl',
+    'ipywidgets',
+    'seaborn',
+    'pettingzoo',
+    'gymnasium',
+]
+
+[project.urls]
+Repository = 'https://github.com/MatteoOnger/algo-collusion-mm'
+Issues = 'https://github.com/MatteoOnger/algo-collusion-mm/issues'
