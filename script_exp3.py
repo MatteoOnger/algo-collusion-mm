@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import time
 
 import src.utils.plots as plots
@@ -7,7 +8,7 @@ import src.utils.storage as storage
 
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List
 
 from src.agents.agent import Agent
 from src.agents.makers.exp3 import MakerEXP3
@@ -17,11 +18,10 @@ from src.utils.common import get_calvano_collusion_index
 from src.utils.stats import OnlineVectorStats
 
 
-plots.DECIMAL_PLACES_VALUES = 0
 
-
-
-BASE_PATH = './experiments/exp3'
+BASE_PATH = os.path.join('.', 'experiments', 'exp3')
+FUNC_SCALE_REWARD = lambda r: r / 0.3
+FUNC_GENERATE_VT = lambda: 0.5
 
 
 
@@ -184,7 +184,7 @@ def multiple_runs(
     saver.print_and_save(f'Done at {current_time} | Execution time: {execution_time:.2f} seconds', silent=True)
     
     # Save plot
-    fig, ax = plt.subplots() 
+    fig, ax = plt.subplots(figsize=(14, 6)) 
     plots.plot_makers_cci(
         episodes_per_window = w,
         cci = stats_cci.get_mean(),
@@ -207,55 +207,60 @@ def multiple_runs(
     return stats_cci.get_mean(), stats_cci.get_std()
 
 
-def worker(run_id: int, epsilons: List[float]) -> np.ndarray:
+def worker(run_id: int, fixed_params: Dict[str, Any], variable_params: List[Dict[str, Any]]) -> np.ndarray:
     """
     Worker function for executing a single run of `multiple_runs`.
 
-    Initializes a new set of agents using a specific exploration parameter (`epsilon`)
-    based on the given run index, creates the environment, and runs a full set of experiments
-    via `multiple_runs`. Results include statistics on the Calvano Collusion Index (CCI).
+    This function builds agent and environment configurations for a specific run, based on a 
+    shared set of fixed parameters and a per-run dictionary of variable parameters. It supports
+    running parallel experiments via `ProcessPoolExecutor`, allowing easy variation of parameters
+    like agent exploration (`epsilon`) across runs.
 
-    This function is designed for parallel execution using `ProcessPoolExecutor`.
+    Agent instances (`MakerEXP3`, `NoPassTrader`) are created with a combination of:
+        - `fixed_params`: shared settings for all runs
+        - `variable_params[run_id]`: run-specific overrides (e.g., `epsilon`, save path)
+
+    Environment parameters are also composed from fixed and variable sources.
 
     Parameters
     ----------
     run_id : int
-        The index of the current parallel run.
-    epsilons : List[float]
-        A list of epsilon values for agent exploration; one per parallel run.
+        The index of the current parallel run, used to select the appropriate variable parameters.
+    fixed_params : Dict[str, Any]
+        Dictionary containing shared configuration across all runs.
+        Keys: 'env', 'maker', 'trader'
+    variable_params : List[Dict[str, Any]]
+        List of per-run configurations. Each element overrides or extends the fixed parameters
+        for its corresponding run.
 
     Returns
     -------
-    : Tuple[np.ndarray, np.ndarray]
-        - Mean CCI across all internal runs: shape (n_makers, k)
-        - Standard deviation of CCI across all internal runs: shape (n_makers, k)
+    np.ndarray
+        A tuple containing:
+            - Mean CCI across all internal runs: shape (n_makers, k)
+            - Standard deviation of CCI across all internal runs: shape (n_makers, k)
     """
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{now}] [Run {run_id}] Starting...', flush=True)
-
-    path = f'{BASE_PATH}/epsilon_{epsilons[run_id]}'
-    prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
-    action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
+    
+    n_makers_u = fixed_params['env']['n_makers_u'] if 'n_makers_u' in fixed_params['env'] else variable_params[run_id]['env']['n_makers_u'] 
+    n_traders = fixed_params['env']['n_traders'] if 'n_traders' in fixed_params['env'] else variable_params[run_id]['env']['n_traders'] 
 
     agents = {
-        'maker_u_0': MakerEXP3(epsilon=epsilons[run_id], scale_rewards=lambda r: (r / 0.3), action_space=action_space, name='maker_u_0'),
-        'maker_u_1': MakerEXP3(epsilon=epsilons[run_id], scale_rewards=lambda r: (r / 0.3), action_space=action_space, name='maker_u_1'),
-        'trader_0': NoPassTrader(tie_breaker='rand', name='trader_0')
+        f'maker_u_{i}':MakerEXP3(
+            name=f'maker_u_{i}', **fixed_params['maker'], **variable_params[run_id]['maker']
+        ) for i in range(n_makers_u)
+    } | {
+        f'trader_{i}':NoPassTrader(
+            name=f'trader{i}', **fixed_params['trader'], **variable_params[run_id]['trader']
+        ) for i in range(n_traders)
     }
 
     results = multiple_runs(
-        generate_vt = lambda: 0.5,
-        n_makers_u = 2,
-        n_makers_i = 0,
-        n_traders = 1,
-        action_space = action_space,
-        agents=agents,
-        nash_reward = 0.1,
-        coll_reward = 0.5,
-        saver_base_path = path,
-        r = 2,
-        n = 1_000,
-        k = 100
+        generate_vt = FUNC_GENERATE_VT,
+        agents = agents,
+        **fixed_params['env'],
+        **variable_params[run_id]['env']
     )
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -269,17 +274,53 @@ if __name__ == '__main__':
 
     max_workers = 2
     n_parallel_runs = 2
-    epsilons = [0.01, 0.05]
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     saver.print_and_save(f'Started at {current_time}')
 
+    prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
+    action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
+    epsilons = [0.01, 0.10]
+
+    # Experiment params
+    fixed_params = {
+        'env': {
+            'n_makers_u': 2,
+            'n_makers_i': 0,
+            'n_traders': 1,
+            'action_space': action_space,
+            'nash_reward': 0.1,
+            'coll_reward': 0.5,
+            'r': 2,
+        },
+        'maker': {
+            'action_space': action_space,
+        },
+        'trader': {
+            'tie_breaker': 'rand'
+        }
+    }
+
+    variable_params = [{
+        'env': {
+            'saver_base_path': os.path.join(BASE_PATH, str(epsilons[i])),
+        },
+        'maker': {
+            'epsilon': epsilons[i],
+        },
+        'trader': {
+
+        }
+    } for i in range(n_parallel_runs)]
+
+    # Parallel run
     futures = list()
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(worker, run_id, epsilons) for run_id in range(n_parallel_runs)]
+        futures = [executor.submit(worker, run_id, fixed_params, variable_params) for run_id in range(n_parallel_runs)]
     results_list = [f.result() for f in futures]
 
+    # Print results
     for i, result in enumerate(results_list):
         cci = result[0]
         std = result[1]
@@ -291,4 +332,4 @@ if __name__ == '__main__':
     end_time = time.time()
     execution_time = end_time - start_time
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    saver.print_and_save(f'Done at {current_time} | Execution time: {execution_time:.2f} seconds', silent=True)
+    saver.print_and_save(f'Done at {current_time} | Execution time: {execution_time:.2f} seconds')

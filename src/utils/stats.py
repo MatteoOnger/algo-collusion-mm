@@ -70,18 +70,25 @@ class OnlineVectorStats:
         return self.mean if self.n > 0 else None
 
 
-    def get_std(self) -> np.ndarray|None:
+    def get_std(self,  sample: bool = True) -> np.ndarray|None:
         """
         Get the current running standard deviation (sample std).
+
+        Parameters
+        ----------
+        sample : bool, default=True
+            If True, return the sample standard deviation (dividing by n-1).
+            If False, return the population standard deviation (dividing by n).
 
         Returns
         -------
         : np.ndarray or None
-            Running standard deviation of shape (dim,), or None if fewer than 2 vectors have been added.
+            Running standard deviation of shape (dim,), or None if not enough vectors have been added.
         """
-        if self.n < 2:
+        if (sample and self.n < 2) or (not sample and self.n < 1):
             return None
-        return np.sqrt(self.rss / (self.n - 1))
+        denom = (self.n - 1) if sample else self.n
+        return np.sqrt(self.rss / denom)
 
 
     def get_count(self) -> int:
