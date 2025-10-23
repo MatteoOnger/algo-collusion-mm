@@ -495,7 +495,9 @@ def plot_makers_cci(
     episodes_per_window: int,
     cci: np.ndarray,
     std: np.ndarray|None = None,
+    x: np.ndarray|None = None,
     title: str = 'Calvano Collusion Index (CCI) per Agent',
+    xlabel: str = 'Episodes',
     agents_name: List[str]|None = None,
     ax: plt.Axes|None = None,
 ) -> plt.Axes:
@@ -513,9 +515,13 @@ def plot_makers_cci(
         Array of shape (n_agents, n_windows) containing the CCI per agent and per window.
     std : np.ndarray or None
         Array of shape (n_agents, n_windows) containing the standatd deviation of the CCI per agent and per window.
-        If None, only the CCI is plotted. 
+        If None, only the CCI is plotted.
+    x : np.ndarray or None, default=None
+        Horizontal axis. If None, the number of episodes is used as the axis.
     title : str, default='Calvano Collusion Index (CCI) per Agent'
         Title of the plot.
+    xlabel : str, defeault='Episodes'
+        Label of the horizontal axis.
     agents_name : list of str or None, default=None
         Names of the agents, used as labels in the legend.
     ax : matplotlib.axes.Axes or None, default=None
@@ -540,7 +546,8 @@ def plot_makers_cci(
     if agents_name is None:
         agents_name = [f'unknown_{i}' for i in range(cci.size)]
 
-    x = (np.arange(cci.shape[1]) + 1 ) * episodes_per_window
+    if x is None:
+        x = (np.arange(cci.shape[1]) + 1 ) * episodes_per_window
 
     cmap = plt.get_cmap("tab10")
 
@@ -557,7 +564,7 @@ def plot_makers_cci(
     
     ax.plot(x, cci.mean(axis=0), label='Average', color='red', ls='--')
 
-    ax.set_xlabel('Episode')
+    ax.set_xlabel(xlabel)
     ax.set_ylabel('Collusion Index')
     ax.set_title(title)
     ax.legend()

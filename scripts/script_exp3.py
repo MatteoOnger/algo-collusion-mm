@@ -231,6 +231,7 @@ def multiple_runs(
         ax = ax
     )
     saver.save_figures({'PLOT_CCI': fig})
+
     fig, ax = plt.subplots(figsize=(14, 6)) 
     plots.plot_makers_cci(
         episodes_per_window = w,
@@ -310,26 +311,28 @@ def worker(run_id: int, fixed_params: Dict[str, Any], variable_params: List[Dict
 if __name__ == '__main__':
     saver = storage.ExperimentStorage(BASE_PATH)
 
-    max_workers = 2
-    n_parallel_runs = 90
+    max_workers = 3
+    n_parallel_runs = 3
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     saver.print_and_save(f'Started at {current_time}')
 
+    n = 10_000
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
 
-    x = MakerEXP3.compute_epsilon(len(action_space), 10_000)
-    epsilons = np.concat([
-        x - np.arange(1,  6)[::-1] * 0.0005,
-        np.array([x]),
-        x + np.arange(1,  6) * 0.0005,
-        0.0025 + np.arange(1, 11) * 0.0010,
-        0.0125 + np.arange(1, 21) * 0.0050,
-        0.1125 + np.arange(1, 41) * 0.0100,
-        0.5125 + np.arange(1, 10) * 0.0500
-    ])
+    x = MakerEXP3.compute_epsilon(len(action_space), n)
+    # epsilons = np.concat([
+    #     x - np.arange(1,  6)[::-1] * 0.0005,
+    #     np.array([x]),
+    #     x + np.arange(1,  6) * 0.0005,
+    #     0.0025 + np.arange(1, 11) * 0.0010,
+    #     0.0125 + np.arange(1, 21) * 0.0050,
+    #     0.1125 + np.arange(1, 41) * 0.0100,
+    #     0.5125 + np.arange(1, 10) * 0.0500
+    # ])
+    epsilons = np.array([0.1, 0.2, 0.5])
 
     # Experiment params
     fixed_params = {
@@ -340,7 +343,8 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'r': 100,
+            'r': 2,
+            'n': n
         },
         'agent': {
             'maker': {
@@ -371,6 +375,9 @@ if __name__ == '__main__':
         futures = [executor.submit(worker, run_id, fixed_params, variable_params) for run_id in range(n_parallel_runs)]
     results_list = [f.result() for f in futures]
 
+    # Save results
+    saver.save_objects({'results_list':results_list})
+
     # Print results
     for i, result in enumerate(results_list):
         mean_cci = result[0]
@@ -383,6 +390,36 @@ if __name__ == '__main__':
             f'EPS:{epsilons[i]} | MEAN_CCI:{np.round(mean_cci[:, -1], 4)}, STD_CCI:{np.round(std_cci[:, -1], 4)} | '
             f'MEAN_SRT_CCI:{np.round(mean_sorted_cci[:, -1], 4)}, STD_SRT_CCI:{np.round(std_sorted_cci[:, -1], 4)}'
         )
+    
+    # Plot results
+    lwm_cci = np.array([result[0][:, -1] for result in results_list]).T
+    lws_cci = np.array([result[1][:, -1] for result in results_list]).T
+    lwm_sorted_cci = np.array([result[2][:, -1] for result in results_list]).T
+    lws_sorted_cci = np.array([result[3][:, -1] for result in results_list]).T
+
+    fig, axes = plt.subplots(2, 1, figsize=(18, 12))
+    plots.plot_makers_cci(
+        n // 100,
+        lwm_cci,
+        lws_cci,
+        epsilons,
+        title = 'Mean CCI wrt. Epsilons - Last Window',
+        xlabel = 'Epsilon',
+        agents_name = ['maker_u_0', 'maker_u_1'],
+        ax = axes[0]
+    )
+    plots.plot_makers_cci(
+        n // 100,
+        lwm_sorted_cci,
+        lws_sorted_cci,
+        epsilons,
+        title='Mean Sorted CCI wrt. Epsilons - Last Window',
+        xlabel = 'Epsilon',
+        agents_name = ['maker_u_0', 'maker_u_1'],
+        ax=axes[1]
+    )
+    plt.tight_layout()
+    saver.save_figures({'PLOT': fig})
 
     end_time = time.time()
     execution_time = end_time - start_time
