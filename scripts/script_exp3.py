@@ -19,7 +19,7 @@ from algo_collusion_mm.utils.stats import OnlineVectorStats
 
 
 
-BASE_PATH = os.path.join('.', 'experiments', 'par')
+BASE_PATH = os.path.join('.', 'experiments', 'exp3')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
 
@@ -106,6 +106,7 @@ def multiple_runs(
 
     # To compute online statistics
     stats_cci = OnlineVectorStats((n_makers, k))
+    stats_sorted_cci = OnlineVectorStats((n_makers, k))
     stats_rwd = OnlineVectorStats(n_makers)
 
     # To save experimental results
@@ -152,6 +153,7 @@ def multiple_runs(
         # Reset env
         _, info = env.reset()
 
+        # Play
         for agent in env.agent_iter():
             action = agents[agent].act(env.observe(agent))
             _, rewards, _, _, infos = env.step(action)
@@ -174,9 +176,10 @@ def multiple_runs(
                 'n_episodes' : n,
                 'window_size' : w,
                 'action_space' : str(action_space).replace('\n', ','),
-                'epsilon' : [agents[name].epsilon for name in env.makers],
                 'tie_breaker' : [agents[name].tie_breaker for name in env.traders],
-                'agent_type' : [agent.__class__.__name__ for agent in agents.values()]
+                'epsilon' : [agents[name].epsilon for name in env.makers],
+                'seed' : {name : agent._seed for name, agent in agents.items()},
+                'agent_type' : [agent.__class__.__name__ for agent in agents.values()],
             },
             'freq_actions' : {
                 0 : {name : str(agents[name].history.compute_freqs(slice(0, w))).replace('\n', '') for name in env.makers},
@@ -197,19 +200,20 @@ def multiple_runs(
                 0  : {name : round(float(cci[idx, 0]), 3) for idx, name in enumerate(env.makers)},
                 k  : {name : round(float(cci[idx, -1]), 3) for idx, name in enumerate(env.makers)},
                 'global' : {name : round(float(cci[idx, :].mean()), 3) for idx, name in enumerate(env.makers)},
-            },
-            'seed' : {
-                name : agent._seed for name, agent in agents.items()
             }
         }
 
+        # Sort agents according to the CCI of the last window
+        sorted_cci = cci[np.argsort(cci[:, -1])[::-1]]
+
         # Update statistics
         stats_cci.update(cci)
+        stats_sorted_cci.update(sorted_cci)
         stats_rwd.update(np.array([env.cumulative_rewards[name] for name in env.makers]))
 
         # Save and print results
         dir = saver.save_experiment([env] + list(agents.values()), info=info)
-        saver.print_and_save(f'{(i+1):03} {"*" if (cci[:, -1] >= 0.45).any() else " "} -> CCI:{info["cci"][k]}'.ljust(60) + f' ({dir})', silent=True)
+        saver.print_and_save(f'{(i+1):03} {'*' if (cci[:, -1] >= 0.45).any() else ' '} -> CCI:{info['cci'][k]}'.ljust(60) + f' ({dir})', silent=True)
 
     end_time = time.time()
     execution_time = end_time - start_time
@@ -226,18 +230,30 @@ def multiple_runs(
         agents_name = env.makers,
         ax = ax
     )
-    saver.save_figures({'PLOT': fig})
+    saver.save_figures({'PLOT_CCI': fig})
+    fig, ax = plt.subplots(figsize=(14, 6)) 
+    plots.plot_makers_cci(
+        episodes_per_window = w,
+        cci = stats_sorted_cci.get_mean(),
+        std = stats_sorted_cci.get_std(),
+        title = f'Mean Sorted Calvano Collusion Index (CCI) - Epsilon: {list(agents.values())[0].epsilon}',
+        agents_name = env.makers,
+        ax = ax
+    )
+    saver.save_figures({'PLOT_SORTED_CCI': fig})
 
     # Save and print results
     saver.print_and_save(
         f'Results:\n'
         f'- [CCI] Average in the last window: {np.round(stats_cci.get_mean()[:, -1], 4)}\n'
         f'- [CCI] Standard deviation in the last window: {np.round(stats_cci.get_std()[:, -1], 4)}\n'
+        f'- [SORTED CCI] Average in the last window: {np.round(stats_sorted_cci.get_mean()[:, -1], 4)}\n'
+        f'- [SORTED CCI] Standard deviation in the last window: {np.round(stats_sorted_cci.get_std()[:, -1], 4)}\n'
         f'- [RWD] Global average: {np.round(stats_rwd.get_mean(), 4)}\n'
         f'- [RWD] Global standard deviation: {np.round(stats_rwd.get_std(), 4)}',
         silent = True
     )
-    return stats_cci.get_mean(), stats_cci.get_std()
+    return stats_cci.get_mean(), stats_cci.get_std(), stats_sorted_cci.get_mean(), stats_sorted_cci.get_std()
 
 
 def worker(run_id: int, fixed_params: Dict[str, Any], variable_params: List[Dict[str, Any]]) -> np.ndarray:
@@ -303,7 +319,7 @@ if __name__ == '__main__':
 
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
-    epsilons = [MakerEXP3.compute_epsilon(len(action_space), 10_000), MakerEXP3.compute_epsilon(len(action_space), 10_000)]
+    epsilons = [MakerEXP3.compute_epsilon(len(action_space), 10_000)] * 2
 
     # Experiment params
     fixed_params = {
@@ -314,7 +330,7 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'r': 50,
+            'r': 10,
         },
         'agent': {
             'maker': {
@@ -347,12 +363,16 @@ if __name__ == '__main__':
 
     # Print results
     for i, result in enumerate(results_list):
-        cci = result[0]
-        std = result[1]
-        mlw_cci = float(cci[:, -1].min())
-        mlw_std = float(std[:, -1].max())
+        mean_cci = result[0]
+        std_cci = result[1]
+        mean_sorted_cci = result[2]
+        std_sorted_cci = result[3]
 
-        saver.print_and_save(f'{(i+1):03} {"*" if (cci[:, -1] >= 0.45).any() else " "} -> EPS:{epsilons[i]} | MIN_CCI:{mlw_cci:.3f}, MAX_STD:{mlw_std:.3f}')
+        saver.print_and_save(
+            f'{(i+1):03} {'*' if (mean_cci[:, -1] >= 0.45).any() else ' '} ->'
+            f'EPS:{epsilons[i]} | MEAN_CCI:{np.round(mean_cci[:, -1], 4)}, STD_CCI:{np.round(std_cci[:, -1], 4)} | '
+            f'MEAN_SRT_CCI:{np.round(mean_sorted_cci[:, -1], 4)}, STD_SRT_CCI:{np.round(std_sorted_cci[:, -1], 4)}'
+        )
 
     end_time = time.time()
     execution_time = end_time - start_time
