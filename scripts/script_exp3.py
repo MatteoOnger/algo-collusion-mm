@@ -19,7 +19,7 @@ from algo_collusion_mm.utils.stats import OnlineVectorStats
 
 
 
-BASE_PATH = os.path.join('.', 'experiments', 'exp3')
+BASE_PATH = os.path.join('.', 'experiments', 'exp3', 'varying_epsilon')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
 
@@ -311,8 +311,8 @@ def worker(run_id: int, fixed_params: Dict[str, Any], variable_params: List[Dict
 if __name__ == '__main__':
     saver = storage.ExperimentStorage(BASE_PATH)
 
-    max_workers = 3
-    n_parallel_runs = 3
+    max_workers = 6
+    n_parallel_runs = 90
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -323,16 +323,15 @@ if __name__ == '__main__':
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
 
     x = MakerEXP3.compute_epsilon(len(action_space), n)
-    # epsilons = np.concat([
-    #     x - np.arange(1,  6)[::-1] * 0.0005,
-    #     np.array([x]),
-    #     x + np.arange(1,  6) * 0.0005,
-    #     0.0025 + np.arange(1, 11) * 0.0010,
-    #     0.0125 + np.arange(1, 21) * 0.0050,
-    #     0.1125 + np.arange(1, 41) * 0.0100,
-    #     0.5125 + np.arange(1, 10) * 0.0500
-    # ])
-    epsilons = np.array([0.1, 0.2, 0.5])
+    epsilons = np.concat([
+        x - np.arange(1,  6)[::-1] * 0.0005,
+        np.array([x]),
+        x + np.arange(1,  6) * 0.0005,
+        0.0025 + np.arange(1, 11) * 0.0010,
+        0.0125 + np.arange(1, 21) * 0.0050,
+        0.1125 + np.arange(1, 41) * 0.0100,
+        0.5125 + np.arange(1, 10) * 0.0500
+    ])
 
     # Experiment params
     fixed_params = {
@@ -343,7 +342,7 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'r': 2,
+            'r': 100,
             'n': n
         },
         'agent': {
