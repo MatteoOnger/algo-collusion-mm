@@ -311,7 +311,7 @@ if __name__ == '__main__':
     saver = storage.ExperimentStorage(BASE_PATH)
 
     max_workers = 2
-    n_parallel_runs = 2
+    n_parallel_runs = 90
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -319,7 +319,17 @@ if __name__ == '__main__':
 
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
-    epsilons = [MakerEXP3.compute_epsilon(len(action_space), 10_000)] * 2
+
+    x = MakerEXP3.compute_epsilon(len(action_space), 10_000)
+    epsilons = np.concat([
+        x - np.arange(1,  6)[::-1] * 0.0005,
+        np.array([x]),
+        x + np.arange(1,  6) * 0.0005,
+        0.0025 + np.arange(1, 11) * 0.0010,
+        0.0125 + np.arange(1, 21) * 0.0050,
+        0.1125 + np.arange(1, 41) * 0.0100,
+        0.5125 + np.arange(1, 10) * 0.0500
+    ])
 
     # Experiment params
     fixed_params = {
@@ -330,7 +340,7 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'r': 10,
+            'r': 100,
         },
         'agent': {
             'maker': {
@@ -344,7 +354,7 @@ if __name__ == '__main__':
 
     variable_params = [{
         'env': {
-            'saver_base_path': os.path.join(BASE_PATH, str(i)),
+            'saver_base_path': os.path.join(BASE_PATH, str(i+1)),
         },
         'agent': {
             'maker': {
