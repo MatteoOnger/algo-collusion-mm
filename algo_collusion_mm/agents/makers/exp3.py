@@ -163,5 +163,5 @@ class MakerEXP3(Maker):
 
     def reset(self) -> None:
         super().reset()
-        self.weights = np.zeros(self.n_arms)
+        self.weights = np.zeros(self.n_arms, dtype=np.float64)
         return

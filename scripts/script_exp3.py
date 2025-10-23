@@ -19,7 +19,7 @@ from algo_collusion_mm.utils.stats import OnlineVectorStats
 
 
 
-BASE_PATH = os.path.join('.', 'experiments', 'exp3')
+BASE_PATH = os.path.join('.', 'experiments', 'par')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
 
@@ -27,11 +27,13 @@ FUNC_GENERATE_VT = lambda: 0.5
 
 def multiple_runs(
     generate_vt: Callable[[], float],
+    scale_rewards: Callable[[float], float],
+    agents_fixed_params: Dict[str, Any],
+    agents_variable_params: Dict[str, Any],
     n_makers_u: int,
     n_makers_i: int,
     n_traders: int,
     action_space: np.ndarray,
-    agents: Dict[str, Agent],
     nash_reward: float,
     coll_reward: float,
     saver_base_path: str,
@@ -40,20 +42,29 @@ def multiple_runs(
     k: int = 100
 ) -> np.ndarray:
     """
-    Run multiple independent experiments in a Glosten-Milgrom environment.
+    Run multiple independent experiments in a Glosten–Milgrom market simulation.
 
-    This function executes `r` repeated experiments using the provided agents and environment
-    configuration. In each experiment, the environment is simulated for `n` episodes and
-    the behavior of the agents is recorded. The Calvano Collusion Index (CCI) is computed
-    over rolling windows of size `n // k` for each agent.
+    This function executes `r` independent experimental runs of a Glosten–Milgrom 
+    environment populated by informed/uninformed market makers and traders. 
+    In each run, agents are reset and re-seeded, the environment is simulated 
+    for `n` episodes, and performance metrics (including the Calvano Collusion 
+    Index, or CCI) are computed over `k` rolling windows.
 
-    The function aggregates statistics across runs, saves experiment data and metadata, and
-    returns summary statistics of CCI and rewards.
+    Statistics of agent behavior, actions, rewards, and CCI are collected and 
+    aggregated across runs. All results and metadata are saved under 
+    `saver_base_path`, and summary plots are generated automatically.
 
     Parameters
     ----------
     generate_vt : Callable[[], float]
-        Function that generates the true value for each episode.
+        Function that generates the true (fundamental) value for each episode.
+    scale_rewards : Callable[[float], float]
+        Function that scales or transforms agent rewards (e.g., for learning stability).
+    agents_fixed_params : Dict[str, Any]
+        Dictionary of hyperparameters shared across all agents of a given type 
+        (e.g., learning rate, exploration strategy).
+    agents_variable_params : Dict[str, Any]
+        Dictionary of run- or agent-specific parameters (e.g., seed, tie-breaking rule).
     n_makers_u : int
         Number of uninformed market makers in the environment.
     n_makers_i : int
@@ -61,31 +72,34 @@ def multiple_runs(
     n_traders : int
         Number of traders in the environment.
     action_space : np.ndarray
-        Array of possible ask/bid price combinations for market makers.
-    agents : Dict[str, Agent]
-        Dictionary mapping agent names to Agent instances.
+        Discrete set of possible (bid, ask) price combinations for market makers.
     nash_reward : float
-        The benchmark reward (single-agent case) under Nash equilibrium for computing the CCI.
+        Benchmark single-agent reward under Nash equilibrium, used to normalize the CCI.
     coll_reward : float
-        The benchmark reward (single-agent case) under full collusion for computing the CCI.
+        Benchmark single-agent reward under full collusion, used to normalize the CCI.
     saver_base_path : str
-        Base directory where experiment results will be stored.
+        Base directory where experiment data, logs, and plots will be saved.
     r : int, default=100
-        Number of independent experiment runs to execute.
+        Number of independent experimental runs to execute.
     n : int, default=10_000
-        Number of episodes per run.
+        Number of trading episodes per run.
     k : int, default=100
-        Number of windows to divide the episode timeline into for CCI calculation.
+        Number of windows to divide the `n` episodes into when computing the CCI.
 
     Returns
     -------
     : Tuple[np.ndarray, np.ndarray]
-        - Mean CCI across all runs: shape (n_makers, k)
-        - Standard deviation of CCI across all runs: shape (n_makers, k)
+        - Mean CCI across all runs, shape (n_makers, k)
+        - Standard deviation of CCI across all runs, shape (n_makers, k)
 
     Notes
     -----
-    - Each agent is reset and reseeded before every run.
+    - Each run creates fresh agent instances, resets their internal states, and re-seeds RNGs.
+    - The Calvano Collusion Index (CCI) measures how close the agents' joint behavior 
+      is to Nash equilibrium (CCI = 0) or full collusion (CCI = 1).
+    - Experiment results include per-agent reward histories, frequency of chosen actions, 
+      and summary statistics, all serialized by `ExperimentStorage`.
+    - A plot of mean ± std CCI across windows is generated and saved automatically.
     """
     w = n // k                              # Window size
     n_makers = n_makers_u + n_makers_i      # Tot number of makers
@@ -101,6 +115,31 @@ def multiple_runs(
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     saver.print_and_save(f'Started at {current_time}', silent=True)
 
+    # Create agents
+    agents = {
+        f'maker_u_{i}':MakerEXP3(
+            name = f'maker_u_{i}',
+            scale_rewards = scale_rewards,
+            **agents_fixed_params['maker'],
+            **agents_variable_params['maker']
+        ) for i in range(n_makers_u)
+    } | {
+        f'trader_{i}':NoPassTrader(
+            name = f'trader{i}',
+            **agents_fixed_params['trader'],
+            **agents_variable_params['trader']
+        ) for i in range(n_traders)
+    }
+
+    # Create env
+    env = GMEnv(
+        generate_vt = generate_vt,
+        n_episodes = n,
+        n_makers_u = n_makers_u,
+        n_makers_i = n_makers_i,
+        n_traders = n_traders,
+    )
+
     for i in range(r):
         if i % 10 == 0:
             saver.print_and_save(f'Running {i} ...', silent=True)
@@ -110,14 +149,7 @@ def multiple_runs(
             agent.reset()
             agent.update_seed()
 
-        env = GMEnv(
-            generate_vt = generate_vt,
-            n_episodes = n,
-            n_makers_u = n_makers_u,
-            n_makers_i = n_makers_i,
-            n_traders = n_traders,
-        )
-
+        # Reset env
         _, info = env.reset()
 
         for agent in env.agent_iter():
@@ -143,6 +175,7 @@ def multiple_runs(
                 'window_size' : w,
                 'action_space' : str(action_space).replace('\n', ','),
                 'epsilon' : [agents[name].epsilon for name in env.makers],
+                'tie_breaker' : [agents[name].tie_breaker for name in env.traders],
                 'agent_type' : [agent.__class__.__name__ for agent in agents.values()]
             },
             'freq_actions' : {
@@ -176,7 +209,7 @@ def multiple_runs(
 
         # Save and print results
         dir = saver.save_experiment([env] + list(agents.values()), info=info)
-        saver.print_and_save(f'{(i+1):03} {"*" if cci[0, -1] >= 0.45 or cci[1, -1] >= 0.45 else " "} -> CCI:{info["cci"][n//w]}'.ljust(60) + f' ({dir})', silent=True)
+        saver.print_and_save(f'{(i+1):03} {"*" if (cci[:, -1] >= 0.45).any() else " "} -> CCI:{info["cci"][k]}'.ljust(60) + f' ({dir})', silent=True)
 
     end_time = time.time()
     execution_time = end_time - start_time
@@ -242,23 +275,12 @@ def worker(run_id: int, fixed_params: Dict[str, Any], variable_params: List[Dict
     """
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'[{now}] [Run {run_id}] Starting...', flush=True)
-    
-    n_makers_u = fixed_params['env']['n_makers_u'] if 'n_makers_u' in fixed_params['env'] else variable_params[run_id]['env']['n_makers_u'] 
-    n_traders = fixed_params['env']['n_traders'] if 'n_traders' in fixed_params['env'] else variable_params[run_id]['env']['n_traders'] 
-
-    agents = {
-        f'maker_u_{i}':MakerEXP3(
-            name=f'maker_u_{i}', **fixed_params['maker'], **variable_params[run_id]['maker']
-        ) for i in range(n_makers_u)
-    } | {
-        f'trader_{i}':NoPassTrader(
-            name=f'trader{i}', **fixed_params['trader'], **variable_params[run_id]['trader']
-        ) for i in range(n_traders)
-    }
 
     results = multiple_runs(
         generate_vt = FUNC_GENERATE_VT,
-        agents = agents,
+        scale_rewards = FUNC_SCALE_REWARD,
+        agents_fixed_params = fixed_params['agent'],
+        agents_variable_params = variable_params[run_id]['agent'],
         **fixed_params['env'],
         **variable_params[run_id]['env']
     )
@@ -281,7 +303,7 @@ if __name__ == '__main__':
 
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
-    epsilons = [0.01, 0.10]
+    epsilons = [MakerEXP3.compute_epsilon(len(action_space), 10_000), MakerEXP3.compute_epsilon(len(action_space), 10_000)]
 
     # Experiment params
     fixed_params = {
@@ -292,25 +314,28 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'r': 2,
+            'r': 50,
         },
-        'maker': {
-            'action_space': action_space,
-        },
-        'trader': {
-            'tie_breaker': 'rand'
+        'agent': {
+            'maker': {
+                'action_space': action_space,
+            },
+            'trader': {
+                'tie_breaker': 'rand'
+            }
         }
     }
 
     variable_params = [{
         'env': {
-            'saver_base_path': os.path.join(BASE_PATH, str(epsilons[i])),
+            'saver_base_path': os.path.join(BASE_PATH, str(i)),
         },
-        'maker': {
-            'epsilon': epsilons[i],
-        },
-        'trader': {
-
+        'agent': {
+            'maker': {
+                'epsilon': epsilons[i],
+            },
+            'trader': {
+            }
         }
     } for i in range(n_parallel_runs)]
 
