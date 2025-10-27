@@ -5,9 +5,10 @@ import numpy as np
 import seaborn as sns
 
 from IPython.display import display
-from typing import Dict,List
+from typing import Dict, List
 
 from ..agents.makers.exp3 import Maker
+from ..utils.stats import OnlineVectorStats
 
 
 
@@ -172,6 +173,76 @@ def plot_all(
         ax_comb_2.set_aspect('equal', adjustable='box')
 
     plt.close()
+    return fig
+
+
+def plot_all_stats(
+    w: int,
+    makers: Dict[str, Maker],
+    stats_cci: OnlineVectorStats|None = None,
+    stats_sorted_cci: OnlineVectorStats|None = None,
+    stats_action_freq: OnlineVectorStats|None = None,
+    stats_joint_actions_freq: OnlineVectorStats|None = None,
+    title: str = 'Makers Stats Summary Plots',
+) -> plt.Figure:
+    """
+    """
+    n_makers = len(makers)
+    rows = 4 if n_makers == 2 else 3
+    action_space = list(makers.values())[0].action_space
+
+    fig = plt.figure(figsize=(6 * n_makers, 4 * rows), constrained_layout=True)
+    fig.suptitle(title, fontsize=20)
+
+    gs = gridspec.GridSpec(rows, n_makers, figure=fig)
+
+    plot_makers_cci(
+        episodes_per_window = w,
+        cci = stats_cci.get_mean(),
+        std = stats_cci.get_std(sample=False),
+        min = stats_cci.get_min(),
+        max = stats_cci.get_max(),
+        title = 'Mean Calvano Collusion Index (CCI)',
+        agents_name = makers.keys(),
+        ax = fig.add_subplot(gs[0, :])
+    )
+
+    plot_makers_cci(
+        episodes_per_window = w,
+        cci = stats_sorted_cci.get_mean(),
+        std = stats_sorted_cci.get_std(sample=False),
+        min = stats_sorted_cci.get_min(),
+        max = stats_sorted_cci.get_max(),
+        title = 'Mean Sorted Calvano Collusion Index (CCI)',
+        agents_name = [f'maker_{i}' for i in range(n_makers)],
+        ax = fig.add_subplot(gs[1, :])
+    )
+
+    for i, (name, maker) in enumerate(makers.items()):
+        plot_maker_heatmap(
+            indexes = maker.price_to_index(action_space),
+            labels = maker.prices,
+            values = stats_action_freq.get_mean()[i, :],
+            title = f'Mean Rel. Actions Freq. - Last Window',
+            agent_name = name,
+            ax = fig.add_subplot(gs[2, i])
+        )
+
+    if n_makers == 2:
+        ax = fig.add_subplot(gs[3, :])
+        sns.heatmap(
+            stats_joint_actions_freq.get_mean(),
+            annot = True,
+            fmt = f'.{DECIMAL_PLACES_VALUES}f',
+            cmap = 'viridis',
+            cbar = True,
+            xticklabels = action_space,
+            yticklabels = action_space,
+            ax = ax
+        )
+        ax.set_xlabel(list(makers.keys())[0].capitalize())
+        ax.set_ylabel(list(makers.keys())[1].capitalize())
+        ax.set_title('Mean Rel. Joint Actions Freq. - Last Window')
     return fig
 
 
@@ -495,6 +566,8 @@ def plot_makers_cci(
     episodes_per_window: int,
     cci: np.ndarray,
     std: np.ndarray|None = None,
+    min: np.ndarray|None = None,
+    max: np.ndarray|None = None,
     x: np.ndarray|None = None,
     title: str = 'Calvano Collusion Index (CCI) per Agent',
     xlabel: str = 'Episodes',
@@ -543,6 +616,10 @@ def plot_makers_cci(
         _, ax = plt.subplots()
     if std is None:
         std = [None] * len(cci)
+    if min is None:
+        min = [None] * len(cci)
+    if max is None:
+        max = [None] * len(cci)
     if agents_name is None:
         agents_name = [f'unknown_{i}' for i in range(cci.size)]
 
@@ -551,16 +628,20 @@ def plot_makers_cci(
 
     cmap = plt.get_cmap("tab10")
 
-    for idx, (agent, series, std_dev) in enumerate(zip(agents_name, cci, std)):
+    for idx, (agent, series, series_std, series_min, series_max) in enumerate(zip(agents_name, cci, std, min, max)):
         ax.plot(x, series, label=agent.capitalize(), color=cmap(idx % 10), marker='*')
-        if std_dev is not None:
+        if series_std is not None:
             ax.fill_between(
                 x,
-                series - std_dev,
-                series + std_dev,
+                series - series_std,
+                series + series_std,
                 color = cmap(idx % 10),
                 alpha = 0.3
             )
+        if series_min is not None:
+            ax.plot(x, series_min,  ls='--', color=cmap(idx % 10), alpha=0.5)
+        if series_max is not None:
+            ax.plot(x, series_max,  ls='--', color=cmap(idx % 10), alpha=0.5)
     
     ax.plot(x, cci.mean(axis=0), label='Average', color='red', ls='--')
 
@@ -574,8 +655,9 @@ def plot_makers_cci(
 
 def plot_makers_comb_actions(
     labels: np.ndarray,
-    actions_idx_m1: np.ndarray,
-    actions_idx_m2: np.ndarray,
+    actions_idx_m1: np.ndarray|None = None,
+    actions_idx_m2: np.ndarray|None = None,
+    max_value: int|None = None,
     title: str = 'Heatmap',
     agent_1_name: str = 'First Maker',
     agent_2_name: str = 'Second Maker',
@@ -592,6 +674,8 @@ def plot_makers_comb_actions(
         Array of shape (n_episodes, 2) containing ask and bid prices of the first maker.
     actions_idx_m2 : np.ndarray
         Array of shape (n_episodes, 2) containing ask and bid prices of the second maker.
+    max_value : float or None, default=None
+        If not None, it is used to normalize the values of the heatmap.
     title : str, default='Heatmap'
         Title of the plot.
     agent_1_name : str, default='First Maker'
@@ -609,7 +693,10 @@ def plot_makers_comb_actions(
     actions_comb = np.concat([actions_idx_m1, actions_idx_m2], axis=1)
     unique_actions_comb, freqs = np.unique(actions_comb, return_counts=True, axis=0)
 
-    matrix = np.full((len(labels), len(labels)), 0, dtype=np.int32)
+    if max_value is not None:
+        freqs = freqs / max_value
+
+    matrix = np.full((len(labels), len(labels)), 0, dtype=(np.int32 if max_value is None else np.float32))
     matrix[unique_actions_comb[:, 1], unique_actions_comb[:, 0]] = freqs
 
     if ax is None:
@@ -618,7 +705,7 @@ def plot_makers_comb_actions(
     sns.heatmap(
         matrix,
         annot = True,
-        fmt = 'd',
+        fmt = 'd' if max_value is None else f'.{DECIMAL_PLACES_VALUES}f',
         cmap = 'viridis',
         cbar = True,
         xticklabels = labels,
@@ -626,7 +713,7 @@ def plot_makers_comb_actions(
         ax = ax
     )
 
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha="right")
     ax.set_xlabel(agent_1_name.capitalize())
     ax.set_ylabel(agent_2_name.capitalize())
     ax.set_title(title)

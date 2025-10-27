@@ -28,6 +28,8 @@ class OnlineVectorStats:
         self.n = 0
         self.mean = np.zeros(dim, dtype=np.float64)
         self.rss = np.zeros(dim, dtype=np.float64)
+        self.min = np.full(dim, np.inf, dtype=np.float64)
+        self.max = np.full(dim, -np.inf, dtype=np.float64)
         return
 
 
@@ -55,6 +57,9 @@ class OnlineVectorStats:
         self.mean += delta / self.n
         delta2 = x - self.mean
         self.rss += delta * delta2
+    
+        self.min = np.minimum(self.min, x)
+        self.max = np.maximum(self.max, x)
         return
 
 
@@ -89,6 +94,30 @@ class OnlineVectorStats:
             return None
         denom = (self.n - 1) if sample else self.n
         return np.sqrt(self.rss / denom)
+
+
+    def get_min(self) -> np.ndarray|None:
+        """
+        Get the minimum value seen so far for each component.
+
+        Returns
+        -------
+        : np.ndarray or None
+            Running minimum of shape (dim,), or None if no data has been added yet.
+        """
+        return self.min if self.n > 0 else None
+
+
+    def get_max(self) -> np.ndarray|None:
+        """
+        Get the maximum value seen so far for each component.
+
+        Returns
+        -------
+        : np.ndarray or None
+            Running maximum of shape (dim,), or None if no data has been added yet.
+        """
+        return self.max if self.n > 0 else None
 
 
     def get_count(self) -> int:

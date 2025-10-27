@@ -8,9 +8,8 @@ import algo_collusion_mm.utils.storage as storage
 
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Tuple
 
-from algo_collusion_mm.agents.agent import Agent
 from algo_collusion_mm.agents.makers.exp3 import MakerEXP3
 from algo_collusion_mm.agents.traders.nopass import NoPassTrader
 from algo_collusion_mm.envs import GMEnv
@@ -19,7 +18,7 @@ from algo_collusion_mm.utils.stats import OnlineVectorStats
 
 
 
-BASE_PATH = os.path.join('.', 'experiments', 'exp3', 'varying_epsilon')
+BASE_PATH = os.path.join('.', 'experiments', 'exp3', 'varying_epsilon_rand')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
 
@@ -40,7 +39,7 @@ def multiple_runs(
     r: int = 100,
     n: int = 10_000,
     k: int = 100
-) -> np.ndarray:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
     """
     Run multiple independent experiments in a Glosten–Milgrom market simulation.
 
@@ -107,6 +106,8 @@ def multiple_runs(
     # To compute online statistics
     stats_cci = OnlineVectorStats((n_makers, k))
     stats_sorted_cci = OnlineVectorStats((n_makers, k))
+    stats_action_freq = OnlineVectorStats((n_makers, len(action_space)))
+    stats_joint_action_freq = OnlineVectorStats((len(action_space),) * n_makers)
     stats_rwd = OnlineVectorStats(n_makers)
 
     # To save experimental results
@@ -206,9 +207,23 @@ def multiple_runs(
         # Sort agents according to the CCI of the last window
         sorted_cci = cci[np.argsort(cci[:, -1])[::-1]]
 
+        # Joint actions frequency
+        actions_comb = np.array([
+            agents[name].action_to_index(agents[name].history.get_actions(slice(-w, None))) for name in env.makers
+        ]).T
+        unique_actions_comb, freqs = np.unique(actions_comb, return_counts=True, axis=0)
+        tmp_mat = np.zeros((len(action_space),) * n_makers)
+
+        print(unique_actions_comb)
+        print(tmp_mat.shape)
+
+        tmp_mat[tuple(unique_actions_comb.T)] = freqs / w
+
         # Update statistics
         stats_cci.update(cci)
         stats_sorted_cci.update(sorted_cci)
+        stats_action_freq.update(np.array([agents[name].history.compute_freqs(slice(-w, None)) for name in env.makers]) / w)
+        stats_joint_action_freq.update(tmp_mat)
         stats_rwd.update(np.array([env.cumulative_rewards[name] for name in env.makers]))
 
         # Save and print results
@@ -221,43 +236,42 @@ def multiple_runs(
     saver.print_and_save(f'Done at {current_time} | Execution time: {execution_time:.2f} seconds', silent=True)
     
     # Save plot
-    fig, ax = plt.subplots(figsize=(14, 6)) 
-    plots.plot_makers_cci(
-        episodes_per_window = w,
-        cci = stats_cci.get_mean(),
-        std = stats_cci.get_std(),
-        title = f'Mean Calvano Collusion Index (CCI) - Epsilon: {list(agents.values())[0].epsilon}',
-        agents_name = env.makers,
-        ax = ax
+    fig = plots.plot_all_stats(
+        w,
+        {maker:agents[maker] for maker in env.makers},
+        stats_cci,
+        stats_sorted_cci,
+        stats_action_freq,
+        stats_joint_action_freq,
+        title = f'Makers Stas Summary Plots - Epsilon:{list(agents.values())[0].epsilon}'
     )
-    saver.save_figures({'PLOT_CCI': fig})
-
-    fig, ax = plt.subplots(figsize=(14, 6)) 
-    plots.plot_makers_cci(
-        episodes_per_window = w,
-        cci = stats_sorted_cci.get_mean(),
-        std = stats_sorted_cci.get_std(),
-        title = f'Mean Sorted Calvano Collusion Index (CCI) - Epsilon: {list(agents.values())[0].epsilon}',
-        agents_name = env.makers,
-        ax = ax
-    )
-    saver.save_figures({'PLOT_SORTED_CCI': fig})
+    saver.save_figures({f'PLOT': fig})
 
     # Save and print results
     saver.print_and_save(
         f'Results:\n'
-        f'- [CCI] Average in the last window: {np.round(stats_cci.get_mean()[:, -1], 4)}\n'
-        f'- [CCI] Standard deviation in the last window: {np.round(stats_cci.get_std()[:, -1], 4)}\n'
-        f'- [SORTED CCI] Average in the last window: {np.round(stats_sorted_cci.get_mean()[:, -1], 4)}\n'
-        f'- [SORTED CCI] Standard deviation in the last window: {np.round(stats_sorted_cci.get_std()[:, -1], 4)}\n'
-        f'- [RWD] Global average: {np.round(stats_rwd.get_mean(), 4)}\n'
-        f'- [RWD] Global standard deviation: {np.round(stats_rwd.get_std(), 4)}',
+        f'- Last window:\n'
+        f' - [CCI] Average: {np.round(stats_cci.get_mean()[:, -1], 4)}\n'
+        f' - [CCI] Minimum: {np.round(stats_cci.get_min()[:, -1], 4)}\n'
+        f' - [CCI] Maximum: {np.round(stats_cci.get_max()[:, -1], 4)}\n'
+        f' - [CCI] Standard deviation: {np.round(stats_cci.get_std(sample=False)[:, -1], 4)}\n'
+        f' - [SORTED CCI] Average: {np.round(stats_sorted_cci.get_mean()[:, -1], 4)}\n'
+        f' - [SORTED CCI] Minimum: {np.round(stats_sorted_cci.get_min()[:, -1], 4)}\n'
+        f' - [SORTED CCI] Maximum: {np.round(stats_sorted_cci.get_max()[:, -1], 4)}\n'
+        f' - [SORTED CCI] Standard deviation: {np.round(stats_sorted_cci.get_std(sample=False)[:, -1], 4)}\n'
+        f'- Global:\n'
+        f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
+        f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
         silent = True
     )
-    return stats_cci.get_mean(), stats_cci.get_std(), stats_sorted_cci.get_mean(), stats_sorted_cci.get_std()
+    return stats_cci, stats_sorted_cci, stats_action_freq, stats_joint_action_freq
 
 
-def worker(run_id: int, fixed_params: Dict[str, Any], variable_params: List[Dict[str, Any]]) -> np.ndarray:
+def worker(
+    run_id: int,
+    fixed_params: Dict[str, Any],
+    variable_params: List[Dict[str, Any]]
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
     """
     Worker function for executing a single run of `multiple_runs`.
 
@@ -312,38 +326,47 @@ if __name__ == '__main__':
     saver = storage.ExperimentStorage(BASE_PATH)
 
     max_workers = 6
-    n_parallel_runs = 90
+    n_parallel_runs = 93
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     saver.print_and_save(f'Started at {current_time}')
 
-    n = 10_000
+    n_makers_u = 3
+    r, n, k = 100, 20_000, 100
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
 
     x = MakerEXP3.compute_epsilon(len(action_space), n)
-    epsilons = np.concat([
-        x - np.arange(1,  6)[::-1] * 0.0005,
+    epsilons = np.round(np.concat([
+        x - np.arange(1,  8)[::-1] * 0.0005,
         np.array([x]),
         x + np.arange(1,  6) * 0.0005,
-        0.0025 + np.arange(1, 11) * 0.0010,
-        0.0125 + np.arange(1, 21) * 0.0050,
-        0.1125 + np.arange(1, 41) * 0.0100,
-        0.5125 + np.arange(1, 10) * 0.0500
-    ])
+        x + 0.0025 + np.arange(1, 11) * 0.0010,
+        x + 0.0125 + np.arange(1, 21) * 0.0050,
+        x + 0.1125 + np.arange(1, 41) * 0.0100,
+        x + 0.5125 + np.arange(1, 10) * 0.0500,
+        5.0
+    ]), 4)
+    
+    print(len(epsilons))
+    print(epsilons)
+    quit()
+
+    assert len(epsilons) == n_parallel_runs
 
     # Experiment params
     fixed_params = {
         'env': {
-            'n_makers_u': 2,
+            'n_makers_u': n_makers_u,
             'n_makers_i': 0,
             'n_traders': 1,
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'r': 100,
-            'n': n
+            'r': r,
+            'n': n,
+            'k': k
         },
         'agent': {
             'maker': {
@@ -375,48 +398,61 @@ if __name__ == '__main__':
     results_list = [f.result() for f in futures]
 
     # Save results
-    saver.save_objects({'results_list':results_list})
+    saver.save_objects({'results_list': results_list})
 
     # Print results
-    for i, result in enumerate(results_list):
-        mean_cci = result[0]
-        std_cci = result[1]
-        mean_sorted_cci = result[2]
-        std_sorted_cci = result[3]
+    for i, results in enumerate(results_list):
+        stats_cci, stats_sorted_cci, stats_action_freq, stats_joint_action_freq = results
+        
+        min_cci, mean_cci, max_cci = stats_cci.get_min(), stats_cci.get_mean(), stats_cci.get_max()
+        std_cci = stats_cci.get_std(sample=False)
+        
+        mean_sorted_cci = stats_sorted_cci.get_mean()
+        std_sorted_cci = stats_sorted_cci.get_std(sample=False)
+
+        mean_action_freq = stats_action_freq.get_mean()
+        most_common_action_idx = np.argmax(mean_action_freq, axis=1)
+
+        mean_joint_action_freq = stats_joint_action_freq.get_mean()
+        most_common_joint_action_idx = np.unravel_index(np.argmax(mean_joint_action_freq), mean_joint_action_freq.shape)
 
         saver.print_and_save(
-            f'{(i+1):03} {'*' if (mean_cci[:, -1] >= 0.45).any() else ' '} ->'
-            f'EPS:{epsilons[i]} | MEAN_CCI:{np.round(mean_cci[:, -1], 4)}, STD_CCI:{np.round(std_cci[:, -1], 4)} | '
-            f'MEAN_SRT_CCI:{np.round(mean_sorted_cci[:, -1], 4)}, STD_SRT_CCI:{np.round(std_sorted_cci[:, -1], 4)}'
+            f'{(i+1):03} {'*' if (mean_cci[:, -1] >= 0.45).any() else ' '} - epsilon: {epsilons[i]} - Last windows ({n//k}) ->\n'
+            f' - [CCI] Mean and standard deviation: {np.round(mean_cci[:, -1], 4)}, {np.round(std_cci[:, -1], 4)}\n'
+            f' - [CCI] Maximum and minimum: {np.round(max_cci[:, -1], 4)}, {np.round(min_cci[:, -1], 4)}\n'
+            f' - [ACTION] Most common and frequency: {str(action_space[most_common_action_idx]).replace('\n', '')}, {mean_action_freq[np.arange(n_makers_u), most_common_action_idx]}\n'
+            f' - [JOINT ACTION] Most common and frequency: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}, {mean_joint_action_freq[most_common_joint_action_idx]}'
         )
     
-    # Plot results
-    lwm_cci = np.array([result[0][:, -1] for result in results_list]).T
-    lws_cci = np.array([result[1][:, -1] for result in results_list]).T
-    lwm_sorted_cci = np.array([result[2][:, -1] for result in results_list]).T
-    lws_sorted_cci = np.array([result[3][:, -1] for result in results_list]).T
+    # # Plot results
+    lwm_cci = np.array([result[0].get_mean()[:, -1] for result in results_list]).T
+    lws_cci = np.array([result[0].get_std(sample=False)[:, -1] for result in results_list]).T
+    lwm_sorted_cci = np.array([result[1].get_mean()[:, -1] for result in results_list]).T
+    lws_sorted_cci = np.array([result[1].get_std(sample=False)[:, -1] for result in results_list]).T
 
     fig, axes = plt.subplots(2, 1, figsize=(18, 12))
     plots.plot_makers_cci(
-        n // 100,
+        n // k,
         lwm_cci,
         lws_cci,
-        epsilons,
+        x = np.arange(len(epsilons)),
         title = 'Mean CCI wrt. Epsilons - Last Window',
         xlabel = 'Epsilon',
-        agents_name = ['maker_u_0', 'maker_u_1'],
+        agents_name = [f'maker_u_{i}' for i in range(n_makers_u)],
         ax = axes[0]
     )
     plots.plot_makers_cci(
-        n // 100,
+        n // k,
         lwm_sorted_cci,
         lws_sorted_cci,
-        epsilons,
-        title='Mean Sorted CCI wrt. Epsilons - Last Window',
+        x = np.arange(len(epsilons)),
+        title = 'Mean Sorted CCI wrt. Epsilons - Last Window',
         xlabel = 'Epsilon',
-        agents_name = ['maker_u_0', 'maker_u_1'],
+        agents_name = [f'maker_u_{i}' for i in range(n_makers_u)],
         ax=axes[1]
     )
+    axes[0].axvline(7, ls='--', color='black', alpha=0.7)
+    axes[1].axvline(7, ls='--', color='black', alpha=0.7)
     plt.tight_layout()
     saver.save_figures({'PLOT': fig})
 
