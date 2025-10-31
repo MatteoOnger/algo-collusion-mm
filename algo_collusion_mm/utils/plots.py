@@ -32,6 +32,7 @@ def plot_all(
     makers: List[Maker],
     makers_belief_name: List[str]|str,
     cci: np.ndarray,
+    annot: bool = True,
     title: str = 'Makers Summary Plot'
 ) -> plt.Figure:
     """
@@ -59,6 +60,8 @@ def plot_all(
         List of names of the maker variable representing the belief of each agent.
     cci : np.ndarray
         Array of shape (n_agents, n_windows) containing the CCI values per agent.
+    annot : bool, default=True
+        If True, display the frequency value inside each cell of the heatmaps.
     title : str, default='Makers Summary Plot'
         Title of the generated figure.
 
@@ -110,6 +113,7 @@ def plot_all(
         ax_freq = fig.add_subplot(gs[2, i])
         plot_maker_actions_freq(
             maker = maker,
+            annot = False,
             ax = ax_freq
         )
         ax_freq.set_aspect('equal', adjustable='box')
@@ -119,6 +123,7 @@ def plot_all(
         plot_maker_belief(
             maker = maker,
             belief_name = makers_belief_name[i],
+            annot = False,
             title = 'Final Belief',
             ax = ax_belief
         )
@@ -140,7 +145,7 @@ def plot_all(
         plot_makers_joint_actions_freq(
             makers = makers,
             episode_range = slice(window_size),
-            annot = False,
+            annot = annot,
             title = 'Joint Actions Frequency - First Window',
             ax = ax_comb_1
         )
@@ -151,7 +156,7 @@ def plot_all(
         plot_makers_joint_actions_freq(
             makers = makers,
             episode_range = slice(-window_size, None),
-            annot = False,
+            annot = annot,
             title = 'Joint Actions Frequency - Last Window',
             ax = ax_comb_2
         )
@@ -170,6 +175,7 @@ def plot_all_stats(
     stats_sorted_cci: OnlineVectorStats|None = None,
     stats_actions_freq: OnlineVectorStats|None = None,
     stats_joint_actions_freq: OnlineVectorStats|None = None,
+    annot: bool = True,
     title: str = 'Makers Statistics Summary Plot',
 ) -> plt.Figure:
     """
@@ -203,6 +209,8 @@ def plot_all_stats(
     stats_joint_actions_freq : OnlineVectorStats, optional
         Online statistics tracker for joint action frequencies between makers.
         If provided and there are exactly two makers, a joint frequency heatmap is plotted.
+    annot : bool, default=True
+        If True, display the frequency value inside each cell of the heatmaps.
     title : str, default='Makers Statistics Summary Plot'
         Title of the generated figure.
 
@@ -254,10 +262,11 @@ def plot_all_stats(
             subfig = fig.add_subfigure(gs[2, i])
             ax = subfig.add_subplot(111)
             plot_maker_actions_freq(
-                maker=maker,
-                matrix=matrix,
-                title='Mean Rel. Actions Freq. - Last Window',
-                ax=ax
+                maker = maker,
+                matrix = matrix,
+                annot = True,
+                title = 'Mean Rel. Actions Freq. - Last Window',
+                ax = ax
             )
 
     if (stats_joint_actions_freq is not None) and (n_makers == 2):
@@ -265,6 +274,7 @@ def plot_all_stats(
         plot_makers_joint_actions_freq(
             makers = makers,
             matrix = stats_joint_actions_freq.get_mean(),
+            annot = annot,
             title = 'Mean Rel. Joint Actions Freq. - Last Window',
             ax = ax
         )
@@ -719,7 +729,7 @@ def plot_makers_cci(
     cci : np.ndarray
         Array of shape (n_makers, n_windows) containing the CCI per maker.
     std : np.ndarray or None, default=None
-        Array of shape (n_makers, n_points) with the standard deviation of the CCI. 
+        Array of shape (n_makers, n_windows) with the standard deviation of the CCI. 
         If provided, shaded regions representing ±1 standard deviation are plotted.
     min : np.ndarray or None, default=None
         Array of shape (n_makers, n_windows) with the minimum CCI values per maker.
