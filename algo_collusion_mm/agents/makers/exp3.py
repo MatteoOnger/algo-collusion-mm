@@ -1,3 +1,5 @@
+""" EXP3 maker.
+"""
 import numpy as np
 
 from typing import Callable, Dict
@@ -25,7 +27,6 @@ class MakerEXP3(Maker):
         Exploration parameter of Exp3.
     scale_rewards : callable[[float], float]
         A function that scales raw rewards into a normalized range (e.g., [0, 1]).
-    
     weights : np.ndarray
         Current Exp3 weights for each arm.
     probs : np.ndarray
@@ -33,7 +34,7 @@ class MakerEXP3(Maker):
     
     Notes
     -----
-    - Based on the adversarial bandit framework described in Lattimore & Szepesvári (2020).
+    - Code based on the adversarial bandit framework described in Lattimore & Szepesvári (2020).
     
     References
     ----------
@@ -91,21 +92,17 @@ class MakerEXP3(Maker):
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.epsilon = epsilon
-        """ Exploration parameter.
-        """
+        """Exploration parameter."""
         self.scale_rewards = scale_rewards
-        """ Function to scale raw rewards.
-        """
+        """Function to scale raw rewards."""
         self.weights = np.zeros(self.n_arms, dtype=np.float64)
-        """ Current weights for each arm.
-        """
+        """Current weights for each arm."""
         return
 
 
     @property
     def probs(self) -> np.ndarray:
-        """ Current probability distribution over actions.
-        """
+        """Current probability distribution over actions."""
         x = self.epsilon * self.weights
         x_stable = x - np.max(x)
         return np.exp(x_stable) / np.sum(np.exp(x_stable))
@@ -114,7 +111,7 @@ class MakerEXP3(Maker):
     @staticmethod
     def compute_epsilon(n_arms: int, n_episodes: int) -> float:
         """
-        Computes the learning rate epsilon for the Exp3 algorithm.
+        Compute the ideal learning rate `epsilon` for the Exp3 algorithm.
         
         The formula used is derived from the theoretical guarantees of the Exp3
         algorithm to minimize regret.
@@ -134,7 +131,7 @@ class MakerEXP3(Maker):
         return np.sqrt(np.log(n_arms) / (n_arms * n_episodes))
 
 
-    def act(self, observation: Dict) -> Dict:
+    def act(self, observation: Dict) -> Dict[str, float]:
         arm_idx = self._rng.choice(self.n_arms, p=self.probs.astype(np.float64))
 
         strategy = self.action_space[arm_idx]

@@ -1,3 +1,5 @@
+""" Utility module for tracking statistics. 
+"""
 import numpy as np
 
 from typing import Tuple
@@ -6,30 +8,40 @@ from typing import Tuple
 
 class OnlineVectorStats:
     """
-    Tracks the running mean and standard deviation for each component 
-    of input vectors using Welford's algorithm.
+    Efficiently tracks running statistics (mean, standard deviation, min, max)
+    for each component of input vectors using Welford's online algorithm.
+
+    Attributes
+    ----------
+    dim : int or tuple of ints
+        Dimension of the vectors.
 
     References
     ----------
-    - Welford, B. P. (1962). Note on a method for
-    calculating corrected sums of squares and products.
-    Technometrics, 4(3), 419-420.
+    - Welford, B. P. (1962). Note on a method for calculating
+    corrected sums of squares and products. Technometrics, 4(3), 419-420.
     """
 
     def __init__(self, dim: int|Tuple[int, ...]):
         """
-        Initialize the statistics tracker.
-
         Parameters
         ----------
         dim : int or tuple of ints
             Dimension of the input vectors.
         """
-        self.n = 0
-        self.mean = np.zeros(dim, dtype=np.float64)
-        self.rss = np.zeros(dim, dtype=np.float64)
-        self.min = np.full(dim, np.inf, dtype=np.float64)
-        self.max = np.full(dim, -np.inf, dtype=np.float64)
+        self.dim = dim
+        """Vectors dimension."""
+
+        self._n = 0
+        """Number of vectors processed so far."""
+        self._mean = np.zeros(dim, dtype=np.float64)
+        """Running mean of the input vectors."""
+        self._rss = np.zeros(dim, dtype=np.float64)
+        """Running sum of squares of differences."""
+        self._min = np.full(dim, np.inf, dtype=np.float64)
+        """Minimum value seen so far."""
+        self._max = np.full(dim, -np.inf, dtype=np.float64)
+        """Maximum value seen so far."""
         return
 
 
@@ -49,17 +61,17 @@ class OnlineVectorStats:
         """
         x = np.asarray(x, dtype=np.float64)
 
-        if x.shape != self.mean.shape:
-            raise ValueError(f"Expected shape {self.mean.shape}, got {x.shape}")
+        if x.shape != self._mean.shape:
+            raise ValueError(f"Expected shape {self._mean.shape}, got {x.shape}")
 
-        self.n += 1
-        delta = x - self.mean
-        self.mean += delta / self.n
-        delta2 = x - self.mean
-        self.rss += delta * delta2
+        self._n += 1
+        delta = x - self._mean
+        self._mean += delta / self._n
+        delta2 = x - self._mean
+        self._rss += delta * delta2
     
-        self.min = np.minimum(self.min, x)
-        self.max = np.maximum(self.max, x)
+        self._min = np.minimum(self._min, x)
+        self._max = np.maximum(self._max, x)
         return
 
 
@@ -72,12 +84,12 @@ class OnlineVectorStats:
         : np.ndarray or None
             Running mean of shape (dim,), or None if no data has been added yet.
         """
-        return self.mean if self.n > 0 else None
+        return self._mean if self._n > 0 else None
 
 
     def get_std(self,  sample: bool = True) -> np.ndarray|None:
         """
-        Get the current running standard deviation (sample std).
+        Get the current running standard deviation.
 
         Parameters
         ----------
@@ -90,10 +102,10 @@ class OnlineVectorStats:
         : np.ndarray or None
             Running standard deviation of shape (dim,), or None if not enough vectors have been added.
         """
-        if (sample and self.n < 2) or (not sample and self.n < 1):
+        if (sample and self._n < 2) or (not sample and self._n < 1):
             return None
-        denom = (self.n - 1) if sample else self.n
-        return np.sqrt(self.rss / denom)
+        denom = (self._n - 1) if sample else self._n
+        return np.sqrt(self._rss / denom)
 
 
     def get_min(self) -> np.ndarray|None:
@@ -105,7 +117,7 @@ class OnlineVectorStats:
         : np.ndarray or None
             Running minimum of shape (dim,), or None if no data has been added yet.
         """
-        return self.min if self.n > 0 else None
+        return self._min if self._n > 0 else None
 
 
     def get_max(self) -> np.ndarray|None:
@@ -117,7 +129,7 @@ class OnlineVectorStats:
         : np.ndarray or None
             Running maximum of shape (dim,), or None if no data has been added yet.
         """
-        return self.max if self.n > 0 else None
+        return self._max if self._n > 0 else None
 
 
     def get_count(self) -> int:
@@ -129,4 +141,4 @@ class OnlineVectorStats:
         : int
             Total number of updates.
         """
-        return self.n
+        return self._n

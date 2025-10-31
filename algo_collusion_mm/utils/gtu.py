@@ -11,9 +11,9 @@ DECIMAL_PLACES = 3
 """
 Number of decimal places to use when rounding numerical outputs, such as rewards.
 """
-MAX_JOINT_ACTION_CACHE = 5
+MAX_JOINT_ACTIONS_CACHE_SIZE = 5
 """
-Maximum number of cached joint action shapes to store in the internal `_joint_action_cache`.
+Maximum number of cached joint action shapes to store in the internal `_joint_actions_cache`.
 
 If the cache exceeds this limit, it will be cleared to manage memory and maintain performance.
 """
@@ -24,11 +24,11 @@ Numerical tolerance used for floating-point comparisons.
 
 
 
-_joint_action_cache: Dict[Tuple[int, ...], np.ndarray] = {}
+_joint_actions_cache: Dict[Tuple[int, ...], np.ndarray] = {}
 """
 **INTERNAL USE ONLY — DO NOT TOUCH**
 
-Internal cache mapping action space shapes to their corresponding precomputed joint action arrays.
+Internal cache mapping action space shapes to their corresponding precomputed joint actions arrays.
 
 Used by `_get_joint_actions` to avoid recomputation when checking equilibrium conditions across
 strategy profiles with the same action space. Do not modify this object directly.
@@ -39,7 +39,7 @@ Doing so may result in invalid equilibrium checks or silent computation errors.
 
 def _get_joint_actions(shape: Tuple[int, ...]) -> np.ndarray:
     """
-    Get or compute the full joint action space for a game with the given action space shape.
+    Get or compute the full joint action space for a game with the given action space shapes.
 
     If the shape has been queried before and the result is cached, the cached result is returned.
     Otherwise, the full Cartesian product is computed and stored in the internal cache.
@@ -55,14 +55,14 @@ def _get_joint_actions(shape: Tuple[int, ...]) -> np.ndarray:
     : np.ndarray
         An array of shape (num_joint_actions, n_players), where each row is a joint action tuple.
     """
-    global _joint_action_cache
+    global _joint_actions_cache
 
-    if shape not in _joint_action_cache:
-        if len(_joint_action_cache) >= MAX_JOINT_ACTION_CACHE:
-            _joint_action_cache.clear()
-        _joint_action_cache[shape] = np.array(list(product(*[range(s) for s in shape])))
+    if shape not in _joint_actions_cache:
+        if len(_joint_actions_cache) >= MAX_JOINT_ACTIONS_CACHE_SIZE:
+            _joint_actions_cache.clear()
+        _joint_actions_cache[shape] = np.array(list(product(*[range(s) for s in shape])))
     
-    return _joint_action_cache[shape]
+    return _joint_actions_cache[shape]
 
 
 
@@ -74,12 +74,6 @@ def compute_joint_actions_and_rewards(
     """
     Compute the joint action space and resulting rewards for each maker in a trading scenario.
 
-    For each joint action, the function:
-    - Determines whether the trader prefers to buy, sell, or is indifferent (random choice).
-    - Calculates which makers are selected under each operation type.
-    - Computes the average number of times each maker is selected.
-    - Computes the reward for each maker based on the trade and the average selection count.
-
     Parameters
     ----------
     action_spaces : list of np.ndarray
@@ -88,7 +82,7 @@ def compute_joint_actions_and_rewards(
     true_value : float
         The true value of the traded asset, used by the trader to decide whether to buy or sell.
     tie_breaker : {'buy', 'sell', 'rand', 'alt'}
-        Rule used to resolve ties between equally favorable prices.
+        Rule used to resolve ties between equally favorable prices:
         - 'buy': always prefer buying in case of tie.
         - 'sell': always prefer selling in case of tie.
         - 'rand': break ties randomly (50/50).
@@ -106,7 +100,7 @@ def compute_joint_actions_and_rewards(
     n_agents = len(action_spaces)
 
     all_combinations = np.array(list(product(*action_spaces)))
-    all_combinations = np.transpose(all_combinations, (0, 2, 1))
+    all_combinations = np.transpose(all_combinations, (0, 2, 1))  # -> (_, 2, n_agents)
 
     min_ask_prices = np.min(all_combinations[:, 0], axis=-1)
     max_bid_prices = np.max(all_combinations[:, 1], axis=-1)
@@ -215,9 +209,12 @@ def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fa
     Parameters
     ----------
     payoffs : np.ndarray
-        Array of shape (*action_spaces, n_players), giving the payoff to each player for every joint action.
+        An array of shape (*action_spaces, n_players) specifying the payoff for each player at every
+        possible joint action. Here, `*action_spaces` means one axis per player's action set
+        (e.g., if there are 3 players with 2, 3, and 2 actions respectively, the shape would be (2, 3, 2, n_players)).
     strategy_profile : np.ndarray
-        A joint distribution over all joint actions. Must sum to 1. Shape should match `payoffs.shape[:-1]`.
+        A probability distribution over joint actions, of shape `(*action_spaces,)`.
+        Each entry gives the probability of that joint action being played. The distribution must sum to 1.
     verbose : bool, default=False
         If True, prints a message for each player that has an incentive to deviate.
     fast : bool, default=True
@@ -239,10 +236,11 @@ def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fa
     # Flatten for vectorized computation
     payoffs_flat = payoffs.reshape(-1, n_players)
     probs_flat = strategy_profile.flatten()
-    probs_flat /= probs_flat.sum()  # Normalize
+    # Normalize (just in case)
+    probs_flat /= probs_flat.sum()
 
     # Fetch or compute joint actions
-    joint_actions = _get_joint_actions(shape)
+    joint_actions = _get_joint_actions(shape)  # -> (n_joint_actions, n_players)
 
     flag = True
     for i in range(n_players):
@@ -274,16 +272,19 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
     """
     Check whether a given joint strategy profile is a Correlated Equilibrium (CE).
 
-    A profile is a CE if, for each player and each pair of actions (a_i, a_i′),
-    the player has no incentive to deviate from the recommended action a_i to a_i′,
+    A profile is a CE if, for each player and each pair of actions (a_i, a_i'),
+    the player has no incentive to deviate from the recommended action a_i to a_i',
     assuming all other players follow their recommendations.
 
     Parameters
     ----------
     payoffs : np.ndarray
-        Array of shape (*action_spaces, n_players), giving the payoff to each player for each joint action.
+        An array of shape (*action_spaces, n_players) specifying the payoff for each player at every
+        possible joint action. Here, `*action_spaces` means one axis per player's action set
+        (e.g., if there are 3 players with 2, 3, and 2 actions respectively, the shape would be (2, 3, 2, n_players)).
     strategy_profile : np.ndarray
-        Joint distribution over all joint actions. Must sum to 1. Shape should match payoffs.shape[:-1].
+        A probability distribution over joint actions, of shape `(*action_spaces,)`.
+        Each entry gives the probability of that joint action being played. The distribution must sum to 1.
     verbose : bool, default=False
         If True, prints information when a profitable deviation is detected.
     fast : bool, default=True
@@ -302,16 +303,18 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
     shape = payoffs.shape[:-1]
     n_players = payoffs.shape[-1]
 
-    # Normalize just in case
-    probs = strategy_profile.reshape(-1)
-    probs /= probs.sum()
+    # Flatten for vectorized computation
     payoffs_flat = payoffs.reshape(-1, n_players)
-    joint_actions = _get_joint_actions(shape)
+    probs_flat = strategy_profile.reshape(-1)
+    # Normalize (just in case)
+    probs_flat /= probs_flat.sum()
+    
+    # Fetch or compute joint actions
+    joint_actions = _get_joint_actions(shape)  # -> (n_joint_actions, n_players)
 
     flag = True
     for i in range(n_players):
         n_actions = shape[i]
-
         for a_i in range(n_actions):
             # Identify indices where player i is recommended action a_i
             mask = joint_actions[:, i] == a_i
@@ -326,11 +329,13 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
                 deviated_actions = joint_actions[mask].copy()
                 deviated_actions[:, i] = a_i_prime
 
+                # Convert multi-index to flat index
                 idx_original = np.ravel_multi_index(joint_actions[mask].T, shape)
                 idx_deviated = np.ravel_multi_index(deviated_actions.T, shape)
 
-                lhs = np.sum(probs[idx_original] * payoffs_flat[idx_original, i])
-                rhs = np.sum(probs[idx_original] * payoffs_flat[idx_deviated, i])
+                # Expected payoff when following recommendation and when deviating to a_i_prime
+                lhs = np.sum(probs_flat[idx_original] * payoffs_flat[idx_original, i])
+                rhs = np.sum(probs_flat[idx_original] * payoffs_flat[idx_deviated, i])
 
                 if lhs + TOL < rhs:
                     if verbose:
@@ -348,10 +353,13 @@ def is_ne(payoffs: np.ndarray, strategies: np.ndarray, verbose: bool = False, fa
     Parameters
     ----------
     payoffs : np.ndarray
-        Array of shape (*action_spaces, n_players), giving the payoff to each player for each joint action.
+        An array of shape (*action_spaces, n_players) specifying the payoff for each player at every
+        possible joint action. Here, `*action_spaces` means one axis per player's action set
+        (e.g., if there are 3 players with 2, 3, and 2 actions respectively, the shape would be (2, 3, 2, n_players)).
     strategies : np.ndarray
-        Array of shape (n_players, max_actions_i), giving each player's mixed strategy.
-        Each player's strategy must sum to 1.
+        Array of shape `(n_players, max_actions_i)`, where each row gives a player's mixed strategy
+        over their available actions. If players have different numbers of actions, unused entries
+        (beyond each player's action count) should be zero. Each player's strategy must sum to 1.
     verbose : bool, default=False
         If True, prints information when a profitable deviation is detected.
     fast : bool, default=True
@@ -367,41 +375,37 @@ def is_ne(payoffs: np.ndarray, strategies: np.ndarray, verbose: bool = False, fa
     - Nash, J. F. (2024). Non-cooperative games.
     In The Foundations of Price Theory Vol 4 (pp. 329-340). Routledge.
     """
+    shape = payoffs.shape[:-1]
     n_players = payoffs.shape[-1]
-    action_spaces = payoffs.shape[:-1]
 
-    # Normalize each player's strategy just in case
-    for i in range(n_players):
-        strategies[i] /= strategies[i].sum()
+    # Flatten for vectorized computation
+    payoffs_flat = payoffs.reshape(-1, n_players)
+    # Normalize each player's strategy (just in case)
+    strategies /= strategies.sum(axis=1, keepdims=True)
 
-    # Get all joint actions
-    joint_actions = _get_joint_actions(action_spaces)  # shape (num_joint_actions, n_players)
-    num_joint_actions = joint_actions.shape[0]
+    # Fetch or compute joint actions
+    joint_actions = _get_joint_actions(shape)  # -> (n_joint_actions, n_players)
+    n_joint_actions = joint_actions.shape[0]
 
     # Compute the probability of each joint action as product of marginal probs
-    joint_probs = np.ones(num_joint_actions)
+    joint_probs = np.ones(n_joint_actions)
     for i in range(n_players):
         joint_probs *= strategies[i, joint_actions[:, i]]
 
-    payoffs_flat = payoffs.reshape(-1, n_players)  # flatten joint actions
-
     flag = True
     for i in range(n_players):
-        n_actions = action_spaces[i]
-
-        # Compute expected payoff for player i under current strategy
-        expected_payoff = np.sum(joint_probs * payoffs_flat[:, i])
-
-        # For each alternative action, check if deviation improves payoff
+        n_actions = shape[i]
         for a_i_prime in range(n_actions):
-            # Construct deviated joint distribution where player i unilaterally plays a_i_prime
-            deviated_joint_probs = np.ones(num_joint_actions)
+            # Compute the deviated joint distribution where player i unilaterally plays a_i_prime
+            deviated_joint_probs = np.ones(n_joint_actions)
             for j in range(n_players):
                 if j == i:
                     deviated_joint_probs *= (joint_actions[:, j] == a_i_prime).astype(float)
                 else:
                     deviated_joint_probs *= strategies[j, joint_actions[:, j]]
 
+            # Expected payoff when following recommendation and when deviating to a_i_prime
+            expected_payoff = np.sum(joint_probs * payoffs_flat[:, i])
             deviated_expected_payoff = np.sum(deviated_joint_probs * payoffs_flat[:, i])
 
             if expected_payoff + TOL < deviated_expected_payoff:

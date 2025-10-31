@@ -1,3 +1,5 @@
+""" Common utilities.
+"""
 import numpy as np
 
 
@@ -9,29 +11,31 @@ def scale_rewards_array(
     max_reward: float,
     target_min: float = -1.0,
     target_max: float = 1.0
-) -> np.ndarray | float:
+) -> np.ndarray|float:
     """
-    Scales (cumulative) rewards from a given range to a target range (default [-1, 1]).
+    Scale rewards from a given range to a target range.
 
     Parameters
     ----------
     rewards : np.ndarray or float
-        Array or float of rewards to be scaled.
+        The reward value(s) to be scaled.
+        Can be a single float or a NumPy array of floats representing multiple rewards.
     n_episodes : int
-        Number of episodes over which the cumulative rewards were computed.
+        Number of episodes used to compute the rewards.
     min_reward : float
         Minimum possible reward per episode.
     max_reward : float
         Maximum possible reward per episode.
-    target_min : float, default=-1
+    target_min : float, default=-1.0
         Minimum value of the target range.
-    target_max : float, default=1
+    target_max : float, default=1.0
         Maximum value of the target range.
 
     Returns
     -------
     : np.ndarray or float
-        Scaled cumulative rewards in the target range.
+        Scaled rewards in the target range.
+        If `rewards` is an array, its shape is preserved.
 
     Raises
     ------
@@ -54,7 +58,7 @@ def split_array(arr: np.ndarray, window_size: int) -> np.ndarray:
 
     If `window_size` is non-positive, the array is reshaped so that the last
     axis becomes a single window of length equal to its size.
-    This is useful, for example, to ensure a consistent 3D shape
+    This is useful, for example, to ensure a consistent shape
     when no actual splitting is performed.
 
     Parameters
@@ -70,7 +74,6 @@ def split_array(arr: np.ndarray, window_size: int) -> np.ndarray:
     -------
     : np.ndarray
         Reshaped array with shape (..., n_windows, window_size).
-        If `window_size <= 0`, returns the original array.
 
     Raises
     ------
@@ -105,10 +108,11 @@ def get_calvano_collusion_index(rewards: np.ndarray, nash_reward: float, coll_re
     Returns
     -------
     : np.ndarray
-        Array of CCI values per agent and per window.
+        Array of CCI values with shape (n_agents, n_windows), where `n_windows`
+        depends on the selected `window_size`.
 
     References
-    --------
+    ----------
     - Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020).
     Artificial intelligence, algorithmic pricing, and collusion.
     *American Economic Review, 110*(10), 3267–3297.

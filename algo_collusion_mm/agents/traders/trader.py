@@ -1,3 +1,5 @@
+""" Abstract trader.
+"""
 from typing import Dict
 
 from ..agent import Agent

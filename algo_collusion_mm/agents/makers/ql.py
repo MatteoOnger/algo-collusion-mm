@@ -1,3 +1,5 @@
+""" Q-learning maker.
+"""
 import numpy as np
 
 from typing import Dict
@@ -11,7 +13,7 @@ class MakerInformedQL(Maker):
     Market maker for the GM environment based on Q-learning.
 
     The agent's state is defined by the actions (ask and bid prices) taken by
-    all market makers in the previous round. Each unique state is identified by a
+    all market makers in the previous round. Each state is identified by a
     unique ID. This agent is considered "informed" because its decision-making
     process is directly influenced by the past actions of other market participants.
 
@@ -32,7 +34,7 @@ class MakerInformedQL(Maker):
     n_agents : int
         Number of maker agents in the environment.
     alpha : float
-        Learning rate for Q-value updates, in the range (0, 1].
+        Learning rate for Q-value updates, in the range [0, 1].
     gamma : float
         Discount factor for future rewards, in the range [0, 1].
     epsilon_scheduler : str
@@ -44,7 +46,6 @@ class MakerInformedQL(Maker):
         Decay rate applied to `epsilon` after each step.
     q_init : float or np.ndarray
         Initial values of the Q-table.
-    
     epsilon : float
         Current exploration rate for the epsilon-greedy policy, in the range [0, 1].
     Q : np.ndarray
@@ -85,7 +86,7 @@ class MakerInformedQL(Maker):
         n_agents : int
             Number of maker agents in the environment.
         alpha : float, default=0.1
-            Learning rate for Q-value updates, in the range (0, 1].
+            Learning rate for Q-value updates, in the range [0, 1].
         gamma : float, default=0.9
             Discount factor for future rewards, in the range [0, 1].
         epsilon_scheduler : str, default='constant'
@@ -123,47 +124,35 @@ class MakerInformedQL(Maker):
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.n_agents = n_agents
-        """ Number of agents.
-        """
+        """Number of agents."""
         self.alpha = alpha
-        """ Learning rate for Q-value updates.
-        """
+        """Learning rate."""
         self.gamma = gamma
-        """ Discount factor for future rewards.
-        """
+        """Discount factor."""
         self.epsilon_scheduler = epsilon_scheduler
-        """ Name of the scheduler.
-        """
+        """Name of the scheduler."""
         self.epsilon_init = epsilon_init
-        """  Initial exploration rate.
-        """
+        """ Initial exploration rate."""
         self.epsilon_decay_rate = epsilon_decay_rate
-        """  Decay rate.
-        """
+        """ Decay rate."""
         self.q_init = q_init
-        """ Initial values of the Q-table.
-        """
+        """Initial values of the Q-table."""
 
         self._t = 0
-        """ Rounds done.
-        """
+        """Rounds done."""
         self._scheduler = MakerInformedQL._scheduler[epsilon_scheduler]
-        """ Epsilon scheduler.
-        """
+        """Epsilon scheduler."""
 
         self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
-        """ Current exploration rate.
-        """
+        """Current exploration rate."""
         self.Q = np.zeros(((self.n_arms ** self.n_agents) + 1, self.n_arms)) + self.q_init
-        """ Current Q-values.
-        """
+        """Current Q-values."""
         self.curr_state_idx = 0
-        """ Index of the current state.
-        """
+        """Index of the current state."""
         return
 
 
-    def act(self, observation: Dict) -> Dict:
+    def act(self, observation: Dict) -> Dict[str, float]:
         if self._rng.random() < self.epsilon:
             arm_idx = self._rng.integers(self.n_arms)
         else:
@@ -182,9 +171,9 @@ class MakerInformedQL(Maker):
         }
 
 
-    def update(self, reward: float, info: Dict) -> None:
+    def update(self, reward: float, info: Dict[str, np.ndarray]) -> None:
         """
-        Updates the agent's internal state based on the reward received
+        Update the agent's internal state based on the reward received
         and additional information from the enivironment.
 
         Parameters
@@ -222,7 +211,7 @@ class MakerInformedQL(Maker):
 
     def _action_to_state_idx(self, actions: np.ndarray) -> int:
         """
-        Converts a list of actions into a unique state index.
+        Convert a list of actions into a unique state index.
 
         Parameters
         ----------

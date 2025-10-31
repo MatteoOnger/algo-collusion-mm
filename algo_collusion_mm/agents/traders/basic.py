@@ -1,3 +1,5 @@
+""" Basic trader.
+"""
 import numpy as np
 
 from typing import Dict, Literal
@@ -30,11 +32,16 @@ class BasicTrader(Trader):
         Stores the last action taken (used for 'alt' tie-breaker).
     """
 
-    def __init__(self, tie_breaker: Literal['buy', 'sell', 'rand', 'alt'] = 'rand', name: str = 'basic_trader', seed: int|None = None):
+    def __init__(
+        self,
+        tie_breaker: Literal['buy', 'sell', 'rand', 'alt'] = 'rand',
+        name: str = 'basic_trader',
+        seed: int|None = None
+    ):
         """ 
         Parameters
         ----------
-        tie_breaker : {'buy', 'sell', 'rand', 'alt'}
+        tie_breaker : {'buy', 'sell', 'rand', 'alt'}, default='rand'
             Strategy to resolve ties when both actions are equally favorable.
             - 'buy': always choose to buy.
             - 'sell': always choose to sell.
@@ -47,11 +54,9 @@ class BasicTrader(Trader):
         """
         super().__init__(name, seed)
         self.tie_breaker = tie_breaker
-        """ Strategy to resolve ties.
-        """        
+        """Strategy to resolve ties."""        
         self.last_action = None
-        """ Last chosen action.
-        """
+        """Last chosen action."""
         
         self._action_space = np.array([GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL, GMEnv.TraderAction.PASS])
         return
@@ -62,9 +67,9 @@ class BasicTrader(Trader):
         return self._action_space
 
 
-    def act(self, observation: Dict) -> Dict:
+    def act(self, observation: Dict[str, float]) -> Dict[str, GMEnv.TraderAction]:
         """
-        Decides to BUY, SELL or PASS based on the current market observation.
+        Decide to BUY, SELL or PASS based on the current market observation.
 
         Parameters
         ----------

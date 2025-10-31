@@ -1,3 +1,5 @@
+""" Memoryless Q-learning makers.
+"""
 import numpy as np
 
 from typing import Dict
@@ -20,7 +22,7 @@ class MakerMLQL(Maker):
     Attributes
     ----------
     alpha : float
-        Learning rate for Q-value updates, in the range (0, 1].
+        Learning rate for Q-value updates, in the range [0, 1].
     gamma : float
         Discount factor for future rewards, in the range [0, 1].
     epsilon_scheduler : str
@@ -32,11 +34,10 @@ class MakerMLQL(Maker):
         Decay rate applied to `epsilon` after each step.
     q_init : float or np.ndarray
         Initial values of the Q-table.
-    
     epsilon : float
         Current exploration rate for the epsilon-greedy policy, in the range [0, 1].
     Q : np.ndarray
-        Current Q-values for each arm.
+        Current Q-value for each arm.
     """
 
     _scheduler = {
@@ -68,7 +69,7 @@ class MakerMLQL(Maker):
         Parameters
         ----------
         alpha : float, default=0.1
-            Learning rate for Q-value updates, in the range (0, 1].
+            Learning rate for Q-value updates, in the range [0, 1].
         gamma : float, default=0.9
             Discount factor for future rewards, in the range [0, 1].
         epsilon_scheduler : str, default='constant'
@@ -106,41 +107,31 @@ class MakerMLQL(Maker):
         super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.alpha = alpha
-        """ Learning rate for Q-value updates.
-        """
+        """Learning rate."""
         self.gamma = gamma
-        """ Discount factor for future rewards.
-        """
+        """Discount factor."""
         self.epsilon_scheduler = epsilon_scheduler
-        """ Name of the scheduler.
-        """
+        """Name of the scheduler."""
         self.epsilon_init = epsilon_init
-        """  Initial exploration rate.
-        """
+        """Initial exploration rate."""
         self.epsilon_decay_rate = epsilon_decay_rate
-        """  Decay rate.
-        """
+        """Decay rate."""
         self.q_init = q_init
-        """ Initial values of the Q-table.
-        """
+        """Initial values of the Q-table."""
         
         self._t = 0
-        """ Rounds done.
-        """
+        """Rounds done."""
         self._scheduler = MakerMLQL._scheduler[epsilon_scheduler]
-        """ Epsilon scheduler.
-        """
+        """Epsilon scheduler."""
 
         self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
-        """ Current exploration rate.
-        """
+        """Current exploration rate."""
         self.Q = np.zeros(self.n_arms) + self.q_init
-        """ Current Q-values.
-        """
+        """Current Q-values."""
         return
 
 
-    def act(self, observation: Dict) -> Dict:
+    def act(self, observation: Dict) -> Dict[str, float]:
         if self._rng.random() < self.epsilon:
             arm_idx = self._rng.integers(self.n_arms)
         else:
@@ -184,13 +175,13 @@ class MakerInformedMLQL(MakerMLQL):
     Market maker for the GM environment based on an informed memoryless Q-learning approach.
 
     This agent is similar to the `MakerMLQL` agent, but, after each action, it updates all 
-    its Q-values using additional information from the environment provided in the `info` dictionary
+    its Q-values using additional information from the environment (provided in the `info` dictionary)
     to estimate the reward it would have received if it had taken a different action.
     """
 
-    def update(self, reward: float, info: Dict) -> None:
+    def update(self, reward: float, info: Dict[str, np.ndarray]) -> None:
         """
-        Updates the agent's internal state based on the reward received
+        Update the agent's internal state based on the reward received
         and additional information from the enivironment.
 
         Parameters

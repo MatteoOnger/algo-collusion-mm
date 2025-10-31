@@ -1,3 +1,5 @@
+""" Abstract maker.
+"""
 import numpy as np
 
 from abc import abstractmethod
@@ -28,7 +30,6 @@ class Maker(Agent):
         All possible (ask_price, bid_price) pairs.
     decimal_places : int
         Number of decimal places to which rewards and actions are rounded.
-    
     last_action : tuple or int or None
         Last chosen action.
         It is None if no action has been taken yet, if it is an integer, it represents the index 
@@ -79,23 +80,18 @@ class Maker(Agent):
         super().__init__(name, seed)
         
         self.ticksize = ticksize
-        """ Minimum increment for prices.
-        """
+        """Minimum increment for prices."""
         self.low = low
-        """  Minimum price allowed.
-        """
+        """ Minimum price allowed."""
         self.high = high
-        """ Maximum price allowed.
-        """
+        """Maximum price allowed."""
         self.decimal_places = decimal_places
-        """ Number of decimal places.
-        """
+        """Number of decimal places."""
 
         op = (lambda a, b: a >= b) if eq else (lambda a, b: a > b)
 
         self.prices: np.ndarray
-        """ Set of possible prices.
-        """
+        """Set of possible prices."""
 
         if prices is not None and action_space is not None:
             raise ValueError('Cannot specify both `prices` and `action_space`')
@@ -110,8 +106,7 @@ class Maker(Agent):
             self._action_space = np.array([(ask, bid) for ask in self.prices for bid in self.prices if op(ask, bid)])
         
         self.last_action = None
-        """ Last chosen action.
-        """
+        """Last chosen action."""
         return
 
 
@@ -120,22 +115,22 @@ class Maker(Agent):
         return self._action_space
 
 
-    def price_to_index(self, prices :np.ndarray) -> np.ndarray:
+    def price_to_index(self, prices: np.ndarray) -> np.ndarray:
         """
-        Converts an array of price to their corresponding indices based on the price list.
+        Convert an array of prices to their corresponding indices based on the price list.
 
-        This method takes a numpy array of prices and maps each action to an index based on
+        This method takes a NumPy array of prices and maps each action to an index based on
         its position in the predefined price list.
 
         Parameters:
         -----------
         prices : np.ndarray
-            A numpy array representing the prices.
+            A NumPy array representing the prices.
 
         Returns:
         --------
         : np.ndarray
-            The function returns a numpy array of indices corresponding to each price.
+            The function returns a NumPy array of indices corresponding to each price.
 
         Raises:
         -------
@@ -159,9 +154,9 @@ class Maker(Agent):
 
 
     @abstractmethod
-    def act(self, observation: Dict) -> Dict:
+    def act(self, observation: Dict) -> Dict[str, float]:
         """
-        Selects an ask-bid strategy.
+        Select an ask-bid strategy.
 
         Parameters
         ----------

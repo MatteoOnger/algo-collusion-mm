@@ -1,3 +1,5 @@
+""" Utility module for managing data storage and loading.
+"""
 import copy
 import json
 import os
@@ -11,7 +13,8 @@ from typing import Any, List, Dict
 
 class ExperimentStorage:
     """
-    Class for saving and loading Python objects into experiment-specific folders.
+    Class for saving and loading experiment-related Python objects,
+    figures and other infos into experiment-specific folders.
 
     Each experiment is stored in a directory named:
         experiment_<progressive_id>_<timestamp>
@@ -28,8 +31,6 @@ class ExperimentStorage:
 
     def __init__(self, base_path: str|None, padding: int = 3):
         """
-        Initialize the storage with a base directory.
-
         Parameters
         ----------
         base_path : str or None
@@ -39,14 +40,11 @@ class ExperimentStorage:
             Total number of digits for the experiment number, padded with leading zeros.
         """
         self.base_path = base_path
-        """ Path to the root directory.
-        """
+        """ Path to the root directory."""
         self.padding = padding
-        """ Number of digits for the experiment number.
-        """
+        """ Number of digits for the experiment number."""
         self.experiment_counter = 0
-        """ Progressive ID counter for experiments.
-        """
+        """ Progressive ID counter for experiments."""
 
         if base_path is not None:
             os.makedirs(self.base_path, exist_ok=True)
@@ -55,7 +53,7 @@ class ExperimentStorage:
 
     def load_objects(self, exp_dir: str) -> Dict[str, Any]:
         """
-        Loads all saved objects from a given experiment folder.
+        Load all saved objects from a given experiment folder.
 
         Parameters
         ----------
@@ -80,7 +78,7 @@ class ExperimentStorage:
 
     def print_and_save(self, text: str, silent: bool = False) -> None:
         """
-        Print and append a single line of text to the RESULTS.txt file in the base path.
+        Print and append a single line of text to the `RESULTS.txt` file in the base path.
 
         This method logs experiment-related information by printing it to the console 
         and appending it to a persistent file. Useful for tracking progress or results 
@@ -91,9 +89,9 @@ class ExperimentStorage:
         Parameters
         ----------
         text : str
-            The line of text to be printed and appended to the results file.
-        silent : bool
-            If True, don't print to stdout, just save.
+            The line of text to print and append to the results file.
+        silent : bool, defualt=False
+            If True, suppress printing to stdout.
 
         Raises
         ------
@@ -112,9 +110,9 @@ class ExperimentStorage:
         return
 
 
-    def save_experiment(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|dict|None = None) -> str:
+    def save_experiment(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|Dict|None = None) -> str:
         """
-        Save a list of Python objects, an optional figure, and optional metadata 
+        Save a list of Python objects, a figure, and metadata 
         (string or JSON) into a newly created experiment folder.
 
         Each object is serialized with pickle, figures are saved as PNG, 
@@ -123,9 +121,10 @@ class ExperimentStorage:
         Parameters
         ----------
         objects : list of any or None, defualt=None
-            List of Python objects to be saved. Each object may define a 
-            `name` attribute, which is used as filename. If not provided, 
-            the object's Python ID is used instead.
+            List of Python objects to be saved. Each object may define a `name` attribute,
+            which is used as filename. If not provided, the object's Python ID is used instead.
+            Objects containing unserializable elements  (e.g., lambda functions) will have 
+            those attributes set to `None` before pickling.
         figure : matplotlib.figure.Figure or None, defualt=None
             If given, the figure will be saved as `PLOT.png` inside the 
             experiment folder.
@@ -140,10 +139,17 @@ class ExperimentStorage:
         
         Raises
         ------
-        TypeError
-            If `info` is not a string or a dictionary.
         ValueError
             If `base_path` is None.
+        TypeError
+            If `info` is not a string or a dictionary.
+
+        Notes
+        -----
+        - Each call creates a unique experiment directory.
+        - Objects containing non-pickleable elements (e.g., lambdas, open files,
+          locally defined functions) will have those attributes replaced with `None` before serialization.
+        - This method overwrites files if names already exist within the new folder.
         """
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
@@ -185,7 +191,7 @@ class ExperimentStorage:
         return exp_dir
 
 
-    def save_figures(self, figures: Dict[str, Any], dpi: int = 300) -> None:
+    def save_figures(self, figures: Dict[str, Figure], dpi: int = 300) -> None:
         """
         Save a dictionary of Matplotlib figures to PNG files.
 
@@ -204,7 +210,7 @@ class ExperimentStorage:
 
         Notes
         -----
-        Each figure is saved in a separate PNG file named '<key>.png' inside `base_path`.
+        Each figure is saved as `<key>.png` in the specified `base_path`.
         """
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
@@ -217,13 +223,13 @@ class ExperimentStorage:
     
     def save_objects(self, objects: Dict[str, Any]) -> None:
         """
-        Save a dictionary of Python objects to pickle files.
+        Save a dictionary of objects to pickle files.
 
         Parameters
         ----------
         objects : dict of str to any
             Dictionary where keys are string names used as filenames (without extension)
-            and values are the Python objects to be saved.
+            and values are the objects to be saved.
 
         Raises
         ------
@@ -232,7 +238,10 @@ class ExperimentStorage:
 
         Notes
         -----
-        Each object is saved in a separate pickle file named '<key>.pkl' inside `base_path`.
+        - Each object is saved as '<key>.pkl' in the specified `base_path`.
+        - Objects containing elements that cannot be pickled (e.g., lambda functions,
+          open file handles, or locally defined functions) will cause a `PicklingError`.
+
         """
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')

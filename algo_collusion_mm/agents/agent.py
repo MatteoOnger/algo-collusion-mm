@@ -1,3 +1,5 @@
+""" Abstract agent.
+"""
 import numpy as np
 
 from abc import ABC, abstractmethod
@@ -33,21 +35,17 @@ class Agent(ABC):
         """
         super().__init__()
         self._seed = seed
-        """ Seed of the PRNG.
-        """
+        """Seed of the PRNG."""
         self._rng = np.random.default_rng(self._seed)
-        """ PRNG.
-        """
+        """PRNG."""
 
         if self._seed is None:
             self._seed = self._rng.bit_generator.seed_seq.entropy
 
         self.name = name
-        """ Name of the agent.
-        """
+        """Name of the agent."""
         self.history = Agent.History(self)
-        """ History of the agent.
-        """
+        """History of the agent."""
         return
 
 
@@ -61,27 +59,27 @@ class Agent(ABC):
     @property
     @abstractmethod
     def action_space(self) -> np.ndarray:
-        """Action space.
+        """ Action space.
         """
         pass
 
 
     def action_to_index(self, actions :np.ndarray) -> np.ndarray:
         """
-        Converts an array of actions to their corresponding indices based on the action space.
+        Convert an array of actions to their corresponding indices based on the action space.
 
-        This method takes a numpy array of actions and maps each action to an index based on
+        This method takes a NumPy array of actions and maps each action to an index based on
         its position in the predefined action space.
 
         Parameters
         -----------
         actions : np.ndarray
-            A numpy array representing the actions, last axis corresponds to a single action.
+            A NumPy array representing the actions, last axis corresponds to a single action.
 
         Returns
         --------
         : np.ndarray
-            The function returns a numpy array of indices corresponding to each action.
+            The function returns a NumPy array of indices corresponding to each action.
 
         Raises
         -------
@@ -97,7 +95,7 @@ class Agent(ABC):
             actions = actions.reshape((-1, 2))
 
         if actions.shape[-1] != self.action_space.shape[-1]:
-            raise ValueError(f'shape mismatch: {actions.shape} vs {self.action_space}')
+            raise ValueError(f'Shape mismatch: {actions.shape} vs {self.action_space}')
         
         indexes = np.where(
             (
@@ -107,7 +105,7 @@ class Agent(ABC):
         return indexes.reshape(shape)
 
 
-    def update_seed(self, seed: int | None = None) -> None:
+    def update_seed(self, seed: int|None = None) -> None:
         """
         Update the internal seed and reinitialize the random number generator (PRNG).
 
@@ -144,7 +142,7 @@ class Agent(ABC):
 
         Parameters
         ----------
-        observation : dict of str
+        observation : dict
             The current observation for the agent.
 
         Returns
@@ -158,14 +156,14 @@ class Agent(ABC):
     @abstractmethod
     def update(self, reward: float, info: Dict) -> None:
         """
-        Updates the agent's internal state based on the reward received and
-        any additional information (if available).
+        Update the agent's internal state based on the reward received and
+        any additional information (if available/needed).
 
         Parameters
         ----------
         reward : float
             The reward assigned to the agent for the most recent action.
-        info : dict of str
+        info : dict
             Empty dictionary. Not used for this agent.
         """
         pass
@@ -178,14 +176,22 @@ class Agent(ABC):
 
         def __init__(self, agent: 'Agent'):
             """
-            Initialize a new instance of History to track the actions done.
+            Parameters
+            ----------
+            agent : Agent
+                The agent whose actions and experiences will be tracked by this History instance.
             """
             self._agent = agent
+            """Agent being tracked."""
 
             self._actions = list()
+            """List of actions taken by the agent."""
             self._extras = list()
+            """List of additional info associated with each action (optional)."""
             self._rewards = list()
+            """List of rewards received after each action."""
             self._states = list()
+            """List of states observed at each step."""
             return
 
 
@@ -195,7 +201,7 @@ class Agent(ABC):
             return_unique: bool = False
         ) -> np.ndarray|Tuple[np.ndarray, np.ndarray]:
             """
-            Computes the frequency of each action taken over selected episodes.
+            Compute the frequency of each action taken over selected episodes.
 
             Parameters
             ----------
@@ -209,8 +215,8 @@ class Agent(ABC):
             -------
             : np.ndarray or tuple[np.ndarray, np.ndarray]
                 If return_unique is False:
-                    A 1D array of shape (n_arms,) where each index corresponds to
-                    the count of actions taken for that arm.
+                    A 1D array of shape `(n_arms,)` containing the counts
+                    of actions taken for each arm.
                 If return_unique is True:
                     A tuple (unique_actions, counts), where:
                         - unique_actions: array of unique actions taken.
@@ -231,7 +237,7 @@ class Agent(ABC):
             key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)
         ) -> Tuple[np.ndarray, int]:
             """
-            Returns the most frequent action.
+            Return the most frequent action.
 
             Parameters
             ----------
@@ -249,26 +255,40 @@ class Agent(ABC):
             return unique_actions[np.argmax(counts)], int(np.max(counts))
 
 
-        def get_actions(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
+        def get_actions(
+            self,
+            key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None),
+            return_index: bool = False
+        ) -> np.ndarray:
             """
-            Retrieves a subset of the action history.
+            Retrieve a subset of the agent's action history.
+
+            This method allows selecting specific episodes or ranges of episodes from the
+            action history. Optionally, it can return the indices of the actions rather than
+            the actions themselves.
 
             Parameters
             ----------
-            key : int, slice, or tuple of ints/slices, default=[:]
+            key : int, slice, or tuple of ints/slices, default=slice(None)
                 Index, slice, or tuple specifying episodes.
+            return_index : bool, default=False
+                If True, return the index representation of the actions using the agent's
+                `action_to_index` method. If False, return the original actions.
 
             Returns
             -------
             : np.ndarray
-                Subset of the action history specified by the key.
+                The selected subset of actions, or their corresponding indices if
+                `return_index=True`.
             """
+            if return_index:
+                return self._agent.action_to_index(np.array(self._actions)[key])
             return np.array(self._actions)[key]
 
 
         def get_extras(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieves all the extra infos collected.
+            Retrieve all the extra infos collected.
 
             Parameters
             ----------
@@ -285,7 +305,7 @@ class Agent(ABC):
 
         def get_rewards(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieves a subset of the reward history.
+            Retrieve a subset of the reward history.
 
             Parameters
             ----------
@@ -302,7 +322,7 @@ class Agent(ABC):
 
         def get_states(self, key: Union[int, slice, Tuple[Union[int, slice], ...]] = slice(None)) -> np.ndarray:
             """
-            Retrieves a subset of the state history.
+            Retrieve a subset of the state history.
 
             Parameters
             ----------
@@ -319,7 +339,7 @@ class Agent(ABC):
 
         def record_action(self, action: Any) -> None:
             """
-            Records a new action in the history.
+            Record a new action in the history.
 
             Parameters
             ----------
@@ -332,7 +352,7 @@ class Agent(ABC):
 
         def record_extra(self, extra: Any) -> None:
             """
-            Records extra info.
+            Record extra info.
 
             Parameters
             ----------
@@ -345,7 +365,7 @@ class Agent(ABC):
 
         def record_reward(self, reward: float) -> None:
             """
-            Records a new reward in the history.
+            Record a new reward in the history.
 
             Parameters
             ----------
@@ -358,7 +378,7 @@ class Agent(ABC):
 
         def record_state(self, state: Any) -> None:
             """
-            Records a new state in the history.
+            Record a new state in the history.
 
             Parameters
             ----------

@@ -1,3 +1,5 @@
+""" Glosten-Milgrom environment.
+"""
 import functools
 import gymnasium as gym
 import numpy as np
@@ -42,7 +44,6 @@ class GMEnv(ptz.AECEnv):
         Number of decimal places to which rewards are rounded.
     render_mode : literal['ascii', 'human'] 
         Mode used for rendering.
-
     name : str
         Name of the environment (from metadata).
     n_makers : int
@@ -176,137 +177,98 @@ class GMEnv(ptz.AECEnv):
             raise ValueError('n_episodes < 1')
 
         self.generate_vt = generate_vt
-        """ Function that returns the true value for the asset at the beginning of each episode.
-        """
+        """Function that returns the true value for the asset at the beginning of each episode."""
         self.n_episodes = n_episodes
-        """ Total number of episodes to simulate.
-        """
+        """Total number of episodes to simulate."""
         self.n_makers_u = n_makers_u
-        """ Number of uninformed market makers.
-        """
+        """Number of uninformed market makers."""
         self.n_makers_i = n_makers_i
-        """ Number of informed market makers.
-        """
+        """Number of informed market makers."""
         self.n_traders = n_traders
-        """ Number of traders.
-        """
+        """Number of traders."""
         self.low = low
-        """ Minimum possible price.
-        """
+        """Minimum possible price."""
         self.high = high
-        """ Maximum possible price.
-        """
+        """Maximum possible price."""
         self.agents_action_space = agents_action_space
-        """ Mapping from agent names to their respective action spaces.
-        """
+        """Mapping from agent names to their respective action spaces."""
         self.decimal_places = decimal_places
-        """ Number of decimal places.
-        """
+        """Number of decimal places."""
         self.render_mode = render_mode
-        """ Rendering mode.
-        """
+        """Rendering mode."""
 
         self.name = GMEnv.metadata['name']
-        """  Name of the environment.
-        """
+        """Name of the environment."""
         self.n_makers = n_makers_u + n_makers_i
-        """ Total number of market makers.
-        """
+        """Total number of market makers."""
 
         self.makers_u = [f'maker_u_{idx}' for idx in range(n_makers_u)]
-        """ Names of uninformed maker agents.
-        """
+        """Names of uninformed maker agents."""
         self.makers_i = [f'maker_i_{idx}' for idx in range(n_makers_i)]
-        """ Names of informed maker agents.
-        """
+        """Names of informed maker agents."""
         self.makers = self.makers_u + self.makers_i
-        """ Names of all market maker agents.
-        """
+        """Names of all market maker agents."""
         self.traders = [f'trader_{idx}' for idx in range(n_traders)]
-        """ Names of all trader agents.
-        """
+        """Names of all trader agents."""
 
         self.possible_agents = self.makers + self.traders
-        """ Name of all agents in the environment
-        """
+        """Name of all agents in the environment."""
         self.agent_name_mapping = {agent:idx for idx, agent in enumerate(self.possible_agents)}
-        """ Mapping from agent name to index.
-        """
+        """Mapping from agent name to index."""
         self.agents_type = (
             [GMEnv.AgentType.MAKER_U] * n_makers_u +
             [GMEnv.AgentType.MAKER_I] * n_makers_i +
             [GMEnv.AgentType.TRADER] * n_traders
         )
-        """ List of agent types.
-        """
+        """List of agent types."""
 
         self._np_random: np.random.Generator
-        """ PRNG.
-        """
+        """PRNG."""
         self._np_random_seed: int
-        """ Seed of the PRNG.
-        """
+        """Seed of the PRNG."""
         self._agent_selector: AgentSelector
-        """ Agent selector. 
-        """
+        """Agent selector."""
 
         self.episode: int
-        """ Current episode number.
-        """
+        """Current episode number."""
         self.true_value: float
-        """ Current true asset value.
-        """
+        """Current true asset value."""
 
         self.trader: str
-        """ Name of the currently selected trader.
-        """
+        """Name of the currently selected trader."""
         self.agents: List[str]
-        """ Name of agents active in the current episode.
-        """
+        """Name of agents active in the current episode."""
         self.agent_selection: str
-        """ Name of the agent whose turn it is to act.
-        """
+        """Name of the agent whose turn it is to act."""
 
         self.min_ask_price: float
-        """ Minimum ask price offered by any maker in the current step.
-        """
+        """Minimum ask price offered by any maker in the current step."""
         self.max_bid_price: float
-        """ Maximum bid price offered by any maker in the current step.
-        """
+        """Maximum bid price offered by any maker in the current step."""
         self.trader_action: GMEnv.TraderAction|None
-        """ Action taken by the trader in the current step
-        """
+        """Action taken by the trader in the current step."""
 
         self._ask_prices: np.ndarray
-        """ Ask prices quoted by each market maker.
-        """
+        """Ask prices quoted by each market maker."""
         self._bid_prices: np.ndarray
-        """ Bid prices quoted by each market maker.
-        """
+        """Bid prices quoted by each market maker."""
 
         self.observations: Dict[str, Dict]
-        """ Observation available per agent.
-        """
+        """Observation available per agent."""
         self.infos: Dict[str, Dict]
-        """ Information available per agent.
-        """
+        """Information available per agent."""
 
         self.rewards: Dict[str, float]
-        """ Rewards assigned to each agent.
-        """
+        """Rewards assigned to each agent."""
         self.cumulative_rewards: Dict[str, float]
-        """ Sum of the rewards assigned to each agent.
-        """
+        """Sum of the rewards assigned to each agent."""
         self._cumulative_rewards: Dict[str, float]
-        """ Alias of `self.cumulative_rewards`, kept for compatibility.
-        """
+        """Alias of `self.cumulative_rewards`, kept for compatibility."""
 
         self.terminations: Dict[str, bool]
-        """ Indicates whether each agent has terminated.
-        """
+        """Indicates whether each agent has terminated."""
         self.truncations: Dict[str, bool]
-        """ Indicates whether each agent was truncated.
-        """
+        """Indicates whether each agent was truncated."""
         return
 
 
@@ -314,7 +276,8 @@ class GMEnv(ptz.AECEnv):
     def _partial_reset(func: Callable) -> Callable:
         """
         Decorator to reset certain environment variables at the start of each new episode.
-        Resets maker prices, min/max prices, trader action, observations, and infos
+        
+        It resets maker prices, min/max prices, trader action, observations, and infos
         if the episode has finished.
 
         Parameters
@@ -349,7 +312,7 @@ class GMEnv(ptz.AECEnv):
 
     def action_space(self, agent: str, seed: int|None = None) -> gym.Space:
         """
-        Returns the action space for a given agent.
+        Return the action space for a given agent.
 
         Makers choose ask and bid prices. Traders choose whether to buy, sell or pass.
 
@@ -379,7 +342,7 @@ class GMEnv(ptz.AECEnv):
 
     def observation_space(self, agent: str, seed: int|None = None) -> gym.Space:
         """
-        Returns the observation space for a given agent.
+        Return the observation space for a given agent.
 
         Traders observe the true value, the minimum ask, and the maximum bid. 
         Makers receive an empty observation.
@@ -414,7 +377,7 @@ class GMEnv(ptz.AECEnv):
 
     def observe(self, agent: str) -> Dict:
         """
-        Returns the current observation for the given agent.
+        Return the current observation for the given agent.
 
         Parameters
         ----------
@@ -423,7 +386,7 @@ class GMEnv(ptz.AECEnv):
 
         Returns
         -------
-        : dict of str
+        : dict
             A dictionary containing the current observation for the specified agent.
             Keys (for traders) include:
                 - 'true_value' (float): The true value of the asset.
@@ -461,7 +424,7 @@ class GMEnv(ptz.AECEnv):
 
         Returns
         -------
-        info : dict of str
+        info : dict
             A dictionary containing additional information if the agent is an informed maker;
             otherwise, an empty dictionary.
             Keys (for informed makers) include:
@@ -498,9 +461,9 @@ class GMEnv(ptz.AECEnv):
 
     def state(self) -> Dict:
         """
-        Returns the global state of the environment.
+        Return the global state of the environment.
 
-        Includes current prices, episode count, rewards, and agent status.
+        It includes current prices, episode count, rewards, and agent status.
 
         Returns
         -------
@@ -527,7 +490,7 @@ class GMEnv(ptz.AECEnv):
 
     def reset(self, seed: int|None = None, options: Dict|None = None) -> Tuple[Dict, Dict]:
         """
-        Resets the environment to the beginning of a new sequence of episodes.
+        Reset the environment to the beginning of a new sequence of episodes.
 
         Randomly selects one trader and initializes maker prices and true value.
 
@@ -577,7 +540,7 @@ class GMEnv(ptz.AECEnv):
     @_partial_reset
     def step(self, action: 'Dict[str, GMEnv.TraderAction|int|float|np.ndarray]') -> Tuple[Dict, Dict, Dict, Dict, Dict]:
         """
-        Executes a step in the environment with the provided action.
+        Execute a step in the environment with the provided action.
 
         Each maker sets prices; the trader decides to buy, sell or pass.
         Rewards are computed based on the resulting transaction and the true value.
@@ -589,7 +552,7 @@ class GMEnv(ptz.AECEnv):
 
         Returns
         -------
-        observations : dict of str
+        observations : dict
             New observations after this step.
         rewards : dict of str to float
             Rewards for each agent.
@@ -597,7 +560,7 @@ class GMEnv(ptz.AECEnv):
             Boolean flags indicating if agents have terminated.
         truncations : dict of str to bool
             Boolean flags indicating if agents were truncated (episode limit reached).
-        infos : dict of str
+        infos : dict
             Additional info.
 
         Raises
@@ -620,9 +583,9 @@ class GMEnv(ptz.AECEnv):
 
         # Update state given current action
         if self.episode >= self.n_episodes:
-            raise ValueError('maximum number of episodes reached')
+            raise ValueError('Maximum number of episodes reached')
         if not ok:
-            raise ValueError(f'action `{action}` is not valid for agent {curr_agent}')
+            raise ValueError(f'Action `{action}` is not valid for agent {curr_agent}')
 
         if self._ismaker(curr_agent):
             self._ask_prices[curr_agent_idx] = action['ask_price']
@@ -667,7 +630,7 @@ class GMEnv(ptz.AECEnv):
 
     def render(self) -> str|None:
         """
-        Renders the environment state according to the selected mode.
+        Render the environment state according to the selected mode.
 
         Returns
         -------
@@ -701,10 +664,10 @@ class GMEnv(ptz.AECEnv):
         action: 'Dict[str, GMEnv.TraderAction|int|float|np.ndarray]'
     ) -> Tuple[Dict[str, TraderAction|float], bool]:
         """
-        Validates and formats the agent's action.
+        Validate and format the agent's action.
 
-        Converts action values to proper types and checks if they are within the 
-        allowed space.
+        It converts action values to proper types and
+        checks if they are within the allowed space.
 
         Parameters
         ----------
@@ -715,7 +678,7 @@ class GMEnv(ptz.AECEnv):
 
         Returns
         -------
-        formatted_action : dict of str
+        formatted_action : dict of str of TraderAction or float
             Cleaned and validated action.
         ok : bool
             Whether the action is valid.
@@ -742,7 +705,7 @@ class GMEnv(ptz.AECEnv):
         bid_prices: np.ndarray|None = None
     ) -> np.ndarray:
         """
-        Computes the rewards for the trader and selected market makers based on the action taken.
+        Compute the rewards for the trader and selected market makers based on the action taken.
 
         Depending on the `trader_action`, the reward is computed either as the difference 
         between the true value and the best available price (min ask or max bid), or zero 
@@ -806,7 +769,7 @@ class GMEnv(ptz.AECEnv):
 
     def _ismaker(self, agent: str) -> bool:
         """
-        Checks if the given agent is a maker.
+        Check if the given agent is a maker.
 
         Parameters
         ----------
@@ -824,7 +787,7 @@ class GMEnv(ptz.AECEnv):
 
     def _istrader(self, agent: str) -> bool:
         """
-        Checks if the given agent is a trader.
+        Check if the given agent is a trader.
 
         Parameters
         ----------
@@ -841,7 +804,7 @@ class GMEnv(ptz.AECEnv):
 
     def _isinformed(self, agent: str) -> bool:
         """
-        Checks if the given agent is informed.
+        Check if the given agent is informed.
 
         Parameters
         ----------
