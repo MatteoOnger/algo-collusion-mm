@@ -64,7 +64,7 @@ class MakerEXP3(Maker):
         Parameters
         ----------
         epsilon : float
-            Exploration parameter of Exp3, in the range (0, 1].
+            Exploration parameter of Exp3.
         scale_rewards : callable[[float], float], default=lambda r: r
             Function to scale raw rewards into a normalized range suitable for Exp3.
             For example, to scale rewards into [0, 1], use a function like:
