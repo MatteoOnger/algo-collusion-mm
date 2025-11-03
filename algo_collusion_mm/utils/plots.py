@@ -113,7 +113,7 @@ def plot_all(
         ax_freq = fig.add_subplot(gs[2, i])
         plot_maker_actions_freq(
             maker = maker,
-            annot = False,
+            annot = annot,
             ax = ax_freq
         )
         ax_freq.set_aspect('equal', adjustable='box')
@@ -123,7 +123,7 @@ def plot_all(
         plot_maker_belief(
             maker = maker,
             belief_name = makers_belief_name[i],
-            annot = False,
+            annot = annot,
             title = 'Final Belief',
             ax = ax_belief
         )
@@ -145,7 +145,7 @@ def plot_all(
         plot_makers_joint_actions_freq(
             makers = makers,
             episode_range = slice(window_size),
-            annot = annot,
+            annot = False,
             title = 'Joint Actions Frequency - First Window',
             ax = ax_comb_1
         )
@@ -156,7 +156,7 @@ def plot_all(
         plot_makers_joint_actions_freq(
             makers = makers,
             episode_range = slice(-window_size, None),
-            annot = annot,
+            annot = False,
             title = 'Joint Actions Frequency - Last Window',
             ax = ax_comb_2
         )
@@ -221,8 +221,9 @@ def plot_all_stats(
         per-maker action frequencies, and optional joint frequency heatmaps.
     """
     n_makers = len(makers)
-    n_rows = 3 + int(n_makers == 2)
-    
+    n_rows = (stats_cci is not None) + (stats_sorted_cci is not None) + (stats_actions_freq is not None) + ((stats_joint_actions_freq is not None) and (n_makers == 2))
+    row = 0
+
     fig = plt.figure(figsize=(6 * n_makers, 4 * n_rows), constrained_layout=True)
     fig.suptitle(title, fontsize=20)
 
@@ -238,8 +239,9 @@ def plot_all_stats(
             max = stats_cci.get_max(),
             makers_name = [maker.name for maker in makers],
             title = 'Mean Calvano Collusion Index (CCI)',
-            ax = fig.add_subplot(gs[0, :])
+            ax = fig.add_subplot(gs[row, :])
         )
+        row += 1
 
     if stats_sorted_cci is not None:
         plot_makers_cci(
@@ -251,15 +253,16 @@ def plot_all_stats(
             max = stats_sorted_cci.get_max(),
             makers_name = [maker.name for maker in makers],
             title = 'Mean Sorted Calvano Collusion Index (CCI)',
-            ax = fig.add_subplot(gs[1, :])
+            ax = fig.add_subplot(gs[row, :])
         )
+        row += 1
 
     if stats_actions_freq is not None:
         for i, maker in enumerate(makers):
             matrix = np.full(2 * (len(maker.prices),), np.nan)
             matrix[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, :]
             
-            subfig = fig.add_subfigure(gs[2, i])
+            subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
             plot_maker_actions_freq(
                 maker = maker,
@@ -268,9 +271,10 @@ def plot_all_stats(
                 title = 'Mean Rel. Actions Freq. - Last Window',
                 ax = ax
             )
+        row += 1
 
     if (stats_joint_actions_freq is not None) and (n_makers == 2):
-        ax = fig.add_subplot(gs[3, :])
+        ax = fig.add_subplot(gs[row, :])
         plot_makers_joint_actions_freq(
             makers = makers,
             matrix = stats_joint_actions_freq.get_mean(),
@@ -278,6 +282,7 @@ def plot_all_stats(
             title = 'Mean Rel. Joint Actions Freq. - Last Window',
             ax = ax
         )
+        row += 1
 
     plt.close()
     return fig

@@ -17,6 +17,7 @@ from algo_collusion_mm.utils.stats import OnlineVectorStats
 from algo_collusion_mm.utils.storage import ExperimentStorage
 
 
+
 BASE_PATH = os.path.join('.', 'experiments', 'exp3')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
