@@ -6,7 +6,7 @@ import numpy as np
 
 def scale_rewards_array(
     rewards: np.ndarray|float,
-    n_episodes: int,
+    n_rounds: int,
     min_reward: float,
     max_reward: float,
     target_min: float = -1.0,
@@ -20,12 +20,12 @@ def scale_rewards_array(
     rewards : np.ndarray or float
         The reward value(s) to be scaled.
         Can be a single float or a NumPy array of floats representing multiple rewards.
-    n_episodes : int
-        Number of episodes used to compute the rewards.
+    n_rounds : int
+        Number of rounds used to compute the rewards.
     min_reward : float
-        Minimum possible reward per episode.
+        Minimum possible reward per round.
     max_reward : float
-        Maximum possible reward per episode.
+        Maximum possible reward per round.
     target_min : float, default=-1.0
         Minimum value of the target range.
     target_max : float, default=1.0
@@ -45,8 +45,8 @@ def scale_rewards_array(
     if min_reward == max_reward:
         raise ValueError('`min_reward` and `max_reward` must be different to avoid division by zero')
 
-    original_min = n_episodes * min_reward
-    original_max = n_episodes * max_reward
+    original_min = n_rounds * min_reward
+    original_max = n_rounds * max_reward
 
     scaled = target_min + (rewards - original_min) * (target_max - target_min) / (original_max - original_min)
     return scaled
@@ -96,13 +96,13 @@ def get_calvano_collusion_index(rewards: np.ndarray, nash_reward: float, coll_re
     Parameters
     ----------
     rewards : np.ndarray
-        Array of shape (n_agents, n_episodes) containing per-agent rewards.
+        Array of shape (n_agents, n_rounds) containing per-agent rewards.
     nash_reward : float
         Benchmark reward under Nash equilibrium (total across all agents).
     coll_reward : float
         Benchmark reward under perfect collusion (total across all agents).
     window_size : int, default=0
-        Size of the episode window for reward aggregation.
+        Size of the window in number of rounds for reward aggregation.
         If 0, no windowing is applied.
 
     Returns

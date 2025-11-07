@@ -40,7 +40,7 @@ def plot_all(
 
     This figure summarizes multiple aspects of the makers' behavior during training or simulation, including:
     - **Action histories** - plots showing the sequence of actions taken by each maker over time.
-    - **Individual reward time series** - per-agent reward progression across episodes or windows.
+    - **Individual reward time series** - per-agent reward progression across rounds or windows.
     - **Absolute action frequency heatmaps** - visualizations of how often each action was chosen by each maker.
     - **Final agents' beliefs** - representation of each maker's belief at the end of the simulation.
     - **Calvano Collusion Index (CCI) over time** - tracks the level of collusion or cooperation between agents.
@@ -49,7 +49,7 @@ def plot_all(
     Parameters
     ----------
     window_size : int
-        Number of episodes per window.
+        Number of rounds per window.
     nash_reward : float
         Reference reward level for Nash equilibrium, shown as a horizontal line in reward plots.
     coll_reward : float
@@ -73,7 +73,7 @@ def plot_all(
 
     Notes
     -----
-    - If exactly 2 makers are provided, combined action heatmaps are shown for the first and last windows of episodes.
+    - If exactly 2 makers are provided, combined action heatmaps are shown for the first and last windows.
     - The figure is closed (`plt.close()`) before being returned to prevent duplicate display in notebooks.
     """
     n_makers = len(makers)
@@ -132,9 +132,10 @@ def plot_all(
     # Row 4: collusion index
     ax_cci = fig.add_subplot(gs[4, :])
     plot_makers_cci(
-        xlabel = 'Episode',
+        xlabel = 'Round',
         x = window_size * np.arange(cci.shape[1]),
         cci = cci,
+        makers_name = [maker.name for maker in makers],
         ax = ax_cci
     )
 
@@ -144,7 +145,7 @@ def plot_all(
         ax_comb_1 = fig.add_subplot(gs[5, 0])
         plot_makers_joint_actions_freq(
             makers = makers,
-            episode_range = slice(window_size),
+            round_range = slice(window_size),
             annot = False,
             title = 'Joint Actions Frequency - First Window',
             ax = ax_comb_1
@@ -155,7 +156,7 @@ def plot_all(
         ax_comb_2 = fig.add_subplot(gs[5, 1])
         plot_makers_joint_actions_freq(
             makers = makers,
-            episode_range = slice(-window_size, None),
+            round_range = slice(-window_size, None),
             annot = False,
             title = 'Joint Actions Frequency - Last Window',
             ax = ax_comb_2
@@ -194,7 +195,7 @@ def plot_all_stats(
     Parameters
     ----------
     window_size : int
-        Number of episodes per averaging window; defines the x-axis scaling for time-based plots.
+        Number of rounds per averaging window; defines the x-axis scaling for time-based plots.
     makers : List[Maker]
         List of `Maker` objects representing the agents to visualize.
     stats_cci : OnlineVectorStats, optional
@@ -231,7 +232,7 @@ def plot_all_stats(
 
     if stats_cci is not None:
         plot_makers_cci(
-            xlabel = 'Episode',
+            xlabel = 'Round',
             x = window_size * np.arange(stats_cci.dim[1]),
             cci = stats_cci.get_mean(),
             std = stats_cci.get_std(sample=False),
@@ -245,7 +246,7 @@ def plot_all_stats(
 
     if stats_sorted_cci is not None:
         plot_makers_cci(
-            xlabel = 'Episode',
+            xlabel = 'Riund',
             x = window_size * np.arange(stats_cci.dim[1]),
             cci = stats_sorted_cci.get_mean(),
             std = stats_sorted_cci.get_std(sample=False),
@@ -290,7 +291,7 @@ def plot_all_stats(
 
 def plot_maker_actions(
     maker: Maker,
-    episode_range: slice = slice(None),
+    round_range: slice = slice(None),
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
@@ -303,9 +304,9 @@ def plot_maker_actions(
     ----------
     maker : Maker
         The market maker to plot.
-    episode_range : slice or None, default=slice(None)
-        A slice object to select a subset of episodes to plot.
-        By default, all episodes are plotted.
+    round_range : slice or None, default=slice(None)
+        A slice object to select a subset of rounds to plot.
+        By default, all rounds are plotted.
     ax : matplotlib.axes.Axes or None, default=None
         The axis on which to plot. If None, a new figure and axis are created.
 
@@ -317,14 +318,14 @@ def plot_maker_actions(
     if ax is None:
         _, ax = plt.subplots()
 
-    actions = maker.history.get_actions(episode_range)
-    x = np.arange(*episode_range.indices(len(maker.history)))
+    actions = maker.history.get_actions(round_range)
+    x = np.arange(*round_range.indices(len(maker.history)))
 
     ax.plot(x, actions[:, 0], label='Ask', color='red', alpha=0.5, marker='*')
     ax.plot(x, actions[:, 1], label='Bid', color='green', alpha=0.5, marker='*')
 
     ax.set_title(f'Ask/Bid Price Trend - {maker.name.capitalize()}')
-    ax.set_xlabel('Episode')
+    ax.set_xlabel('Round')
     ax.set_ylabel('Price')
     ax.grid(True)
     ax.legend()
@@ -334,7 +335,7 @@ def plot_maker_actions(
 def plot_maker_actions_freq(
     maker: Maker,
     matrix: np.ndarray|None = None,
-    episode_range: slice = slice(None),
+    round_range: slice = slice(None),
     annot: bool = True,
     normalize: bool = True,
     title: str = 'Actions Frequency',
@@ -344,7 +345,7 @@ def plot_maker_actions_freq(
     Plot a heatmap showing the frequency of a maker's ask/bid price actions.
 
     This function visualizes how frequently a trading agent (the maker) selected 
-    each ask/bid price combination over a specified range of episodes. 
+    each ask/bid price combination over a specified range of rounds. 
     The resulting heatmap displays either raw frequencies or normalized probabilities 
     (if `normalize=True`) for each pair of ask and bid prices.
 
@@ -358,9 +359,9 @@ def plot_maker_actions_freq(
     matrix : np.ndarray or None, default=None
         A 2D array representing the ask/bid frequency matrix to plot.
         Each entry at position (i, j) corresponds to ask price i and bid price j.
-        If None, the matrix is computed from `maker.history` over the specified `episode_range`.
-    episode_range : slice, default=slice(None)
-        The range of episodes to include when computing the action frequencies.
+        If None, the matrix is computed from `maker.history` over the specified `round_range`.
+    round_range : slice, default=slice(None)
+        The range of rounds to include when computing the action frequencies.
         Ignored if `matrix` is provided.
     annot : bool, default=True
         If True, display the frequency value inside each cell of the heatmap.
@@ -385,7 +386,7 @@ def plot_maker_actions_freq(
         _, ax = plt.subplots()
     
     if matrix is None:
-        unique_actions, freqs = maker.history.compute_freqs(episode_range, return_unique=True)
+        unique_actions, freqs = maker.history.compute_freqs(round_range, return_unique=True)
         unique_actions = maker.price_to_index(unique_actions)
 
         if normalize:
@@ -416,7 +417,7 @@ def plot_maker_actions_freq(
 def plot_maker_belief(
     maker: Maker,
     belief_name: str,
-    episode_range: slice = slice(None),
+    ronud_range: slice = slice(None),
     annot: bool = True,
     title: str = 'Belief',
     ax: plt.Axes|None = None
@@ -427,7 +428,7 @@ def plot_maker_belief(
     This function visualizes a 2D matrix of values representing the maker's internal belief 
     state or a related variable (specified by `belief_name`) mapped to bid/ask price combinations. 
     The belief data is retrieved dynamically using its name. If `belief_name` is 'extra', 
-    the data is obtained from `maker.history.get_extras(episode_range)` instead.
+    the data is obtained from `maker.history.get_extras(ronud_range)` instead.
 
     Parameters
     ----------
@@ -437,8 +438,8 @@ def plot_maker_belief(
         Name of the maker variable representing the belief or related quantity 
         (e.g. 'belief', 'q_values', 'v_values', 'policy', etc.). 
         If 'extra', the data is retrieved via `maker.history.get_extras()`.
-    episode_range : slice, default=slice(None)
-        The range of episodes to consider when retrieving the belief data 
+    ronud_range : slice, default=slice(None)
+        The range of rounds to consider when retrieving the belief data 
         (used only if `belief_name == 'extra'`).
     annot : bool, default=True
         If True, write the data value in each cell.
@@ -457,7 +458,7 @@ def plot_maker_belief(
         _, ax = plt.subplots()
     
     unique_actions = maker.price_to_index(maker.action_space)
-    freqs = getattr(maker, belief_name) if belief_name != 'extra' else maker.history.get_extras(episode_range)
+    freqs = getattr(maker, belief_name) if belief_name != 'extra' else maker.history.get_extras(ronud_range)
 
     matrix = np.full(2*(len(maker.prices),), np.nan)
     matrix[unique_actions[:, 1], unique_actions[:, 0]] = freqs
@@ -571,13 +572,13 @@ def plot_maker_belief_evolution(
 
 def plot_maker_rewards(
     maker: Maker,
-    episode_range: slice = slice(None),
+    round_range: slice = slice(None),
     nash_reward: float|None = None,
     coll_reward: float|None = None,
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot the reward trend of a single maker across a range of episodes.
+    Plot the reward trend of a single maker across a range of rounds.
 
     Optionally includes horizontal reference lines for Nash equilibrium
     reward and collusion reward.
@@ -586,9 +587,9 @@ def plot_maker_rewards(
     ----------
     maker : Maker
         The maker agent whose rewards will be plotted.
-    episode_range : slice, default=slice(None)
-        Slice defining which episodes to plot.
-        By default, all episodes are plotted.
+    round_range : slice, default=slice(None)
+        Slice defining which rounds to plot.
+        By default, all rounds are plotted.
     nash_reward : float or None, default=None
         Reference value for the Nash equilibrium reward. If None, no line is plotted.
     coll_reward : float or None, default=None
@@ -607,8 +608,8 @@ def plot_maker_rewards(
     cmap = plt.get_cmap("tab10")
     color = cmap(int(maker.name.split("_")[-1]) % 10)
 
-    rewards = maker.history.get_rewards(episode_range)
-    x = np.arange(*episode_range.indices(len(maker.history)))
+    rewards = maker.history.get_rewards(round_range)
+    x = np.arange(*round_range.indices(len(maker.history)))
 
     ax.plot(x, rewards, label=maker.name.capitalize(), color=color, marker='*')
     if nash_reward is not None:
@@ -617,7 +618,7 @@ def plot_maker_rewards(
         ax.axhline(coll_reward, label='Collusion', color='red', ls='--')
 
     ax.set_title(f'Rewards Trend - {maker.name.capitalize()}')
-    ax.set_xlabel('Episode')
+    ax.set_xlabel('Round')
     ax.set_ylabel('Reward')
     ax.grid(True)
     ax.legend()
@@ -626,22 +627,22 @@ def plot_maker_rewards(
 
 def plot_makers_best_actions(
     makers: List[Maker],
-    episode_range: slice = slice(None),
+    round_range: slice = slice(None),
     true_value: float = 0.5,
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot the best prices (closest to the true value) for each maker across episodes.
+    Plot the best prices (closest to the true value) for each maker across rounds.
 
     For each maker, bid and ask prices are displayed with different markers and colors.
-    The best price per episode (either the closest ask or bid to the true value) is highlighted.
+    The best price per round (either the closest ask or bid to the true value) is highlighted.
 
     Parameters
     ----------
     makers : list of Maker
         List of `Maker` instances containing historical bid/ask prices.
-    episode_range : slice, default=slice(None)
-        Range of episodes to include in the plot. By default, all episodes are plotted.
+    round_range : slice, default=slice(None)
+        Range of rounds to include in the plot. By default, all rounds are plotted.
     true_value : float, default=0.5
         The true asset value used as reference to determine best prices.
     ax : matplotlib.axes.Axes or None, default=None
@@ -658,8 +659,8 @@ def plot_makers_best_actions(
     cmap = plt.get_cmap("tab10")
     markers = {'ask': 'o', 'bid': '*'}
 
-    actions = np.array([maker.history.get_actions(episode_range) for maker in makers])
-    x = np.arange(*episode_range.indices(actions.shape[1]))
+    actions = np.array([maker.history.get_actions(round_range) for maker in makers])
+    x = np.arange(*round_range.indices(actions.shape[1]))
 
     for i, maker in enumerate(makers):
         color = cmap(i % 10)
@@ -696,7 +697,7 @@ def plot_makers_best_actions(
     ax.axhline(true_value,  label='True Value', color='black', ls=':',)
 
     ax.set_title('Best Price per Maker vs True Value')
-    ax.set_xlabel('Episode')
+    ax.set_xlabel('Round')
     ax.set_ylabel('Price')
     ax.grid(True)
     ax.legend(
@@ -730,7 +731,7 @@ def plot_makers_cci(
     xlabel : str
         Label of the horizontal axis.
     x : np.ndarray
-        Horizontal axis values (e.g., episodes, time steps, or windows).
+        Horizontal axis values (e.g., rounds, time steps, or windows).
     cci : np.ndarray
         Array of shape (n_makers, n_windows) containing the CCI per maker.
     std : np.ndarray or None, default=None
@@ -803,7 +804,7 @@ def plot_makers_cci(
 def plot_makers_joint_actions_freq(
     makers: Tuple[Maker, Maker],
     matrix: np.ndarray|None = None,
-    episode_range: slice = slice(None),
+    round_range: slice = slice(None),
     annot: bool = True,
     normalize: bool = True,
     title: str = 'Joint Actions Frequency',
@@ -813,7 +814,7 @@ def plot_makers_joint_actions_freq(
     Plot a heatmap showing the frequency of joint actions taken by two makers.
 
     This function visualizes how often pairs of actions (one from each maker)
-    occur together across a specified range of episodes. The resulting heatmap
+    occur together across a specified range of rounds. The resulting heatmap
     provides insight into the interaction or correlation between the two makers'
     behavior, with frequencies optionally normalized to sum to one.
 
@@ -829,9 +830,9 @@ def plot_makers_joint_actions_freq(
         A 2D array representing the joint frequency of actions between the two makers.
         The entry at position (i, j) corresponds to how often maker 1 took action i
         while maker 2 took action j. If None, the matrix is computed automatically
-        from each maker's recorded action history over the given `episode_range`.
-    episode_range : slice, default=slice(None)
-        The range of episodes to include when computing the joint action frequencies.
+        from each maker's recorded action history over the given `round_range`.
+    round_range : slice, default=slice(None)
+        The range of rounds to include when computing the joint action frequencies.
         Ignored if `matrix` is provided.
     annot : bool, default=True
         If True, annotate each cell of the heatmap with its numeric value.
@@ -867,8 +868,8 @@ def plot_makers_joint_actions_freq(
 
     if matrix is None:
         joint_actions = np.concat([
-            makers[0].history.get_actions(episode_range, return_index=True)[:, None],
-            makers[1].history.get_actions(episode_range, return_index=True)[:, None]
+            makers[0].history.get_actions(round_range, return_index=True)[:, None],
+            makers[1].history.get_actions(round_range, return_index=True)[:, None]
         ], axis=1)
         unique_joint_actions, freqs = np.unique(joint_actions, return_counts=True, axis=0)
 

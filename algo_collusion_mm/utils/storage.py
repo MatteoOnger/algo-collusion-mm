@@ -16,8 +16,8 @@ class ExperimentStorage:
     Class for saving and loading experiment-related Python objects,
     figures and other infos into experiment-specific folders.
 
-    Each experiment is stored in a directory named:
-        experiment_<progressive_id>_<timestamp>
+    Each episode is stored in a directory named:
+        episode_<progressive_id>_<timestamp>
 
     Objects passed to the saver are serialized individually in this folder.
 
@@ -34,17 +34,17 @@ class ExperimentStorage:
         Parameters
         ----------
         base_path : str or None
-            Path to the root directory where experiments will be saved.
+            Path to the root directory where episodes will be saved.
             If None, this saver can be used only to load data.
         padding : int, default=3
-            Total number of digits for the experiment number, padded with leading zeros.
+            Total number of digits for the episode number, padded with leading zeros.
         """
         self.base_path = base_path
         """ Path to the root directory."""
         self.padding = padding
-        """ Number of digits for the experiment number."""
-        self.experiment_counter = 0
-        """ Progressive ID counter for experiments."""
+        """ Number of digits for the episode number."""
+        self.episode_counter = 0
+        """ Progressive ID counter for episodes."""
 
         if base_path is not None:
             os.makedirs(self.base_path, exist_ok=True)
@@ -53,12 +53,12 @@ class ExperimentStorage:
 
     def load_objects(self, exp_dir: str) -> Dict[str, Any]:
         """
-        Load all saved objects from a given experiment folder.
+        Load all saved objects from a given folder.
 
         Parameters
         ----------
         exp_dir : str
-            Path to the experiment directory containing saved objects.
+            Path to the directory containing saved objects.
 
         Returns
         -------
@@ -110,10 +110,10 @@ class ExperimentStorage:
         return
 
 
-    def save_experiment(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|Dict|None = None) -> str:
+    def save_episode(self, objects: List[Any]|None = None, figure: Figure|None = None, info: str|Dict|None = None) -> str:
         """
         Save a list of Python objects, a figure, and metadata 
-        (string or JSON) into a newly created experiment folder.
+        (string or JSON) into a newly created episode folder.
 
         Each object is serialized with pickle, figures are saved as PNG, 
         and info is stored as a text or JSON file.
@@ -135,7 +135,7 @@ class ExperimentStorage:
         Returns
         -------
         : str
-            Path to the experiment folder where objects were saved.
+            Path to the episode folder where objects were saved.
         
         Raises
         ------
@@ -146,7 +146,7 @@ class ExperimentStorage:
 
         Notes
         -----
-        - Each call creates a unique experiment directory.
+        - Each call creates a unique episode directory.
         - Objects containing non-pickleable elements (e.g., lambdas, open files,
           locally defined functions) will have those attributes replaced with `None` before serialization.
         - This method overwrites files if names already exist within the new folder.
@@ -154,7 +154,7 @@ class ExperimentStorage:
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
 
-        exp_dir = self._create_experiment_dir()
+        exp_dir = self._create_episode_dir()
 
         # Save objects
         if objects is not None:
@@ -253,14 +253,14 @@ class ExperimentStorage:
         return
 
 
-    def _create_experiment_dir(self) -> str:
+    def _create_episode_dir(self) -> str:
         """
-        Create a new experiment directory with progressive ID and timestamp.
+        Create a new episode directory with progressive ID and timestamp.
 
         Returns
         -------
         : str
-            Path to the created experiment directory.
+            Path to the created episode directory.
 
         Raises
         ------
@@ -270,9 +270,9 @@ class ExperimentStorage:
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
 
-        self.experiment_counter += 1
+        self.episode_counter += 1
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        exp_dir = os.path.join(self.base_path, f'experiment_{self.experiment_counter:0{self.padding}}_{timestamp}')
+        exp_dir = os.path.join(self.base_path, f'episode_{self.episode_counter:0{self.padding}}_{timestamp}')
 
         os.makedirs(exp_dir, exist_ok=True)
         return exp_dir

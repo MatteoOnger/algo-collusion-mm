@@ -36,7 +36,7 @@ def multiple_runs(
     coll_reward: float,
     saver_base_path: str,
     n_experiments: int = 100,
-    n_episodes: int = 10_000,
+    n_rounds: int = 10_000,
     n_windows: int = 100
 ) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
     """
@@ -45,7 +45,7 @@ def multiple_runs(
     This function performs several independent runs of a simulated Glosten-Milgrom 
     financial market populated by uninformed market makers basedd on EXP3 as well as traders. 
     In each run, all agents are reinitialized and reseeded before simulating a sequence 
-    of trading episodes. Performance metrics such as the Calvano Collusion Index (CCI), 
+    of trading rounds. Performance metrics such as the Calvano Collusion Index (CCI), 
     reward statistics, and action frequencies are computed over rolling time windows.
 
     Aggregated statistics across all runs are tracked online and summarized 
@@ -55,7 +55,7 @@ def multiple_runs(
     Parameters
     ----------
     generate_vt : Callable[[], float]
-        Function that generates the true value of the traded asset for each episode.
+        Function that generates the true value of the traded asset for each round.
     scale_rewards : Callable[[float], float]
         Function used to scale or normalize agent rewards (e.g., for numerical stability).
     agents_fixed_params : Dict[str, Any]
@@ -78,10 +78,10 @@ def multiple_runs(
         Base directory where experiment results, logs, and generated plots are saved.
     n_experiments : int, default=100
         Number of independent experiment repetitions.
-    n_episodes : int, default=10_000
-        Number of trading episodes per experiment run.
+    n_rounds : int, default=10_000
+        Number of trading rounds per experiment run.
     n_windows : int, default=100
-        Number of rolling windows into which the `n_episodes` are divided 
+        Number of rolling windows into which the `n_rounds` are divided 
         for computing windowed statistics (e.g., the CCI).
 
     Returns
@@ -117,7 +117,7 @@ def multiple_runs(
     OnlineVectorStats : Tracks online means and variances for high-dimensional data.
     get_calvano_collusion_index : Computes the CCI given agents' reward histories.
     """
-    window_size = n_episodes // n_windows   # Window size
+    window_size = n_rounds // n_windows   # Window size
 
     # To compute online statistics
     stats_cci = OnlineVectorStats((n_makers_u, n_windows))
@@ -152,7 +152,7 @@ def multiple_runs(
     # Create env
     env = GMEnv(
         generate_vt = generate_vt,
-        n_episodes = n_episodes,
+        n_rounds = n_rounds,
         n_makers_u = n_makers_u,
         n_makers_i = 0,
         n_traders = n_traders,
@@ -174,7 +174,7 @@ def multiple_runs(
             action = agents[agent].act(env.observe(agent))
             _, rewards, _, _, infos = env.step(action)
 
-            if infos['episode_finished']:
+            if infos['round_finished']:
                 for a in env.possible_agents:
                     agents[a].update(rewards[a], infos[a])
 
@@ -189,7 +189,7 @@ def multiple_runs(
         # Collect info
         info = {
             'parmas' : {
-                'n_episodes' : n_episodes,
+                'n_rounds' : n_rounds,
                 'window_size' : window_size,
                 'action_space' : str(action_space).replace('\n', ','),
                 'tie_breaker' : [agents[name].tie_breaker for name in env.traders],
@@ -239,7 +239,7 @@ def multiple_runs(
         stats_rwd.update(np.array([env.cumulative_rewards[maker] for maker in env.makers]))
 
         # Save and print results
-        dir = saver.save_experiment([env] + list(agents.values()), info=info)
+        dir = saver.save_episode([env] + list(agents.values()), info=info)
         saver.print_and_save(f'{(i+1):03} {'*' if (cci[:, -1] >= 0.45).any() else ' '} -> CCI:{info['cci'][n_windows]}'.ljust(60) + f' ({dir})', silent=True)
 
     end_time = time.time()
@@ -386,7 +386,7 @@ if __name__ == '__main__':
             'nash_reward': 0.1,
             'coll_reward': 0.5,
             'n_experiments': r,
-            'n_episodes': n,
+            'n_rounds': n,
             'n_windows': k
         },
         'agent': {

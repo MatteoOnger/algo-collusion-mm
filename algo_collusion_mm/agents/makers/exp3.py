@@ -112,7 +112,7 @@ class MakerEXP3(Maker):
 
 
     @staticmethod
-    def compute_epsilon(n_arms: int, n_episodes: int) -> float:
+    def compute_epsilon(n_arms: int, n_rounds: int) -> float:
         """
         Compute the ideal learning rate `epsilon` for the Exp3 algorithm.
         
@@ -123,15 +123,15 @@ class MakerEXP3(Maker):
         ----------
         n_arms : int
             The number of arms (actions) in the bandit problem.
-        n_episodes : int
-            Number of episodes.
+        n_rounds : int
+            Number of rounds.
 
         Returns
         -------
         epsilon : float
             The calculated optimal learning rate.
         """
-        return np.sqrt(np.log(n_arms) / (n_arms * n_episodes))
+        return np.sqrt(np.log(n_arms) / (n_arms * n_rounds))
 
 
     def act(self, observation: Dict) -> Dict[str, float]:

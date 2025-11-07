@@ -204,12 +204,12 @@ class Agent(ABC):
             return_unique: bool = False
         ) -> np.ndarray|Tuple[np.ndarray, np.ndarray]:
             """
-            Compute the frequency of each action taken over selected episodes.
+            Compute the frequency of each action taken over selected rounds.
 
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=[:]
-                Index, slice, or tuple specifying episodes.
+                Index, slice, or tuple specifying rounds.
             return_unique : bool, default=False
                 If True, returns the unique actions and their counts directly.
                 If False, returns an array with counts aligned to the agent's action space.
@@ -245,7 +245,7 @@ class Agent(ABC):
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=[:]
-                Index, slice, or tuple specifying episodes.
+                Index, slice, or tuple specifying rounds.
 
             Returns
             -------
@@ -266,14 +266,14 @@ class Agent(ABC):
             """
             Retrieve a subset of the agent's action history.
 
-            This method allows selecting specific episodes or ranges of episodes from the
+            This method allows selecting specific rounds or ranges of rounds from the
             action history. Optionally, it can return the indices of the actions rather than
             the actions themselves.
 
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=slice(None)
-                Index, slice, or tuple specifying episodes.
+                Index, slice, or tuple specifying rounds.
             return_index : bool, default=False
                 If True, return the index representation of the actions using the agent's
                 `action_to_index` method. If False, return the original actions.
@@ -296,7 +296,7 @@ class Agent(ABC):
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=[:]
-                Index, slice, or tuple specifying episodes.
+                Index, slice, or tuple specifying rounds.
 
             Returns
             -------
@@ -313,7 +313,7 @@ class Agent(ABC):
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=[:]
-                Index, slice, or tuple specifying episodes.
+                Index, slice, or tuple specifying rounds.
 
             Returns
             -------
@@ -330,7 +330,7 @@ class Agent(ABC):
             Parameters
             ----------
             key : int, slice, or tuple of ints/slices, default=[:]
-                Index, slice, or tuple specifying episodes.
+                Index, slice, or tuple specifying rounds.
 
             Returns
             -------

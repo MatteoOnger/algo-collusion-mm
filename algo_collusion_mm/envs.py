@@ -26,9 +26,9 @@ class GMEnv(ptz.AECEnv):
     Attributes
     ----------
     generate_vt : callable[[], float]
-        Function that returns the true value for the asset at the beginning of each episode.
-    n_episodes : int
-        Total number of episodes to simulate.
+        Function that returns the true value for the asset at the beginning of each round.
+    n_rounds : int
+        Total number of rounds to simulate.
     n_makers_u : int
         Number of uninformed market makers.
     n_makers_i : int
@@ -63,12 +63,12 @@ class GMEnv(ptz.AECEnv):
         Mapping from agent name to index.
     agents_type : list of GM2Env.AgentType
         List of agent types (MAKER_U, MAKER_I, or TRADER).
-    episode : int
-        Current episode number. Starts at 0 and increments after each complete step.
+    round : int
+        Current round number. Starts at 0 and increments after each complete step.
     trader : int
-        Name of the trader in the current episode.
+        Name of the trader in the current round.
     agents : list of str
-        Name of agents active in the current episode (all makers + one trader).
+        Name of agents active in the current round (all makers + one trader).
     agent_selection : str
         Name of the agent whose turn it is to act.
     rewards : dict of str to float
@@ -78,13 +78,13 @@ class GMEnv(ptz.AECEnv):
     observations : dict of str to dict
         Most recent observation available to each agent.
     infos : dict of str to dict
-        Auxiliary information returned to agents (e.g., whether episode has finished).
+        Auxiliary information returned to agents (e.g., whether round has finished).
     terminations : dict of str to bool
-        Indicates whether each agent has terminated (e.g., episode ended).
+        Indicates whether each agent has terminated (e.g., round ended).
     truncations : dict of str to bool
-        Indicates whether each agent was truncated due to episode length.
+        Indicates whether each agent was truncated due to round length.
     true_value : float
-        The true underlying value of the asset for the current episode.
+        The true underlying value of the asset for the current round.
     min_ask_price : float
         Minimum ask price offered by any maker in the current step.
     max_bid_price : float
@@ -127,7 +127,7 @@ class GMEnv(ptz.AECEnv):
     def __init__(
         self,
         generate_vt: Callable[[], float],
-        n_episodes: int,
+        n_rounds: int,
         n_makers_u: int,
         n_makers_i: int,
         n_traders: int,
@@ -141,9 +141,9 @@ class GMEnv(ptz.AECEnv):
         Parameters
         ----------
         generate_vt : callable[[], float]
-            Function that returns the true value for the asset at the beginning of each episode.
-        n_episodes : int
-            Total number of episodes to simulate.
+            Function that returns the true value for the asset at the beginning of each round.
+        n_rounds : int
+            Total number of rounds to simulate.
         n_makers_u : int
             Number of uninformed market makers.
         n_makers_i : int
@@ -166,7 +166,7 @@ class GMEnv(ptz.AECEnv):
         Raises
         ------
         ValueError
-            If the number of makers, traders or episodes is smaller than one.
+            If the number of makers, traders or rounds is smaller than one.
         """
         super().__init__()
 
@@ -174,13 +174,13 @@ class GMEnv(ptz.AECEnv):
             raise ValueError('n_makers < 1')
         if n_traders < 1:
             raise ValueError('n_traders < 1')
-        if n_episodes < 1:
-            raise ValueError('n_episodes < 1')
+        if n_rounds < 1:
+            raise ValueError('n_rounds < 1')
 
         self.generate_vt = generate_vt
-        """Function that returns the true value for the asset at the beginning of each episode."""
-        self.n_episodes = n_episodes
-        """Total number of episodes to simulate."""
+        """Function that returns the true value for the asset at the beginning of each round."""
+        self.n_rounds = n_rounds
+        """Total number of rounds to simulate."""
         self.n_makers_u = n_makers_u
         """Number of uninformed market makers."""
         self.n_makers_i = n_makers_i
@@ -230,15 +230,15 @@ class GMEnv(ptz.AECEnv):
         self._agent_selector: AgentSelector
         """Agent selector."""
 
-        self.episode: int
-        """Current episode number."""
+        self.round: int
+        """Current round number."""
         self.true_value: float
         """Current true asset value."""
 
         self.trader: str
         """Name of the currently selected trader."""
         self.agents: List[str]
-        """Name of agents active in the current episode."""
+        """Name of agents active in the current round."""
         self.agent_selection: str
         """Name of the agent whose turn it is to act."""
 
@@ -283,10 +283,10 @@ class GMEnv(ptz.AECEnv):
     @staticmethod
     def _partial_reset(func: Callable) -> Callable:
         """
-        Decorator to reset certain environment variables at the start of each new episode.
+        Decorator to reset certain environment variables at the start of each new round.
         
         It resets maker prices, min/max prices, trader action, observations, and infos
-        if the episode has finished.
+        if the round has finished.
 
         Parameters
         ----------
@@ -304,7 +304,7 @@ class GMEnv(ptz.AECEnv):
             """
             result = func(self, *args, **kwargs)
 
-            if result[4]['episode_finished']:
+            if result[4]['round_finished']:
                 self._ask_prices = np.zeros(self.n_makers, dtype=np.float64)
                 self._bid_prices = np.zeros(self.n_makers, dtype=np.float64)
         
@@ -313,7 +313,7 @@ class GMEnv(ptz.AECEnv):
                 self.trader_action = None
 
                 self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-                self.infos = {'episode_finished': False} | {agent: {} for agent in self.possible_agents}
+                self.infos = {'round_finished': False} | {agent: {} for agent in self.possible_agents}
             return result
         return wrapper
 
@@ -471,7 +471,7 @@ class GMEnv(ptz.AECEnv):
         """
         Return the global state of the environment.
 
-        It includes current prices, episode count, rewards, and agent status.
+        It includes current prices, round count, rewards, and agent status.
 
         Returns
         -------
@@ -479,7 +479,7 @@ class GMEnv(ptz.AECEnv):
             A dictionary with the full internal state.
         """
         state = {
-            'episode': self.episode,
+            'round': self.round,
             'possible_agents': self.possible_agents,
             'agents': self.agents,
             'true_value': self.true_value,
@@ -498,7 +498,7 @@ class GMEnv(ptz.AECEnv):
 
     def reset(self, seed: int|None = None, options: Dict|None = None) -> Tuple[Dict, Dict]:
         """
-        Reset the environment to the beginning of a new sequence of episodes.
+        Reset the environment to the beginning of a new sequence of rounds.
 
         Randomly selects one trader and initializes maker prices and true value.
 
@@ -518,7 +518,7 @@ class GMEnv(ptz.AECEnv):
         """
         self._np_random, self._np_random_seed = gym.utils.seeding.np_random(seed)
 
-        self.episode = 0
+        self.round = 0
         self.true_value = self.generate_vt()
 
         self.trader = str(self._np_random.choice(self.traders))
@@ -538,7 +538,7 @@ class GMEnv(ptz.AECEnv):
         self._cumulative_rewards = self.cumulative_rewards
 
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
-        self.infos = {'episode_finished': False} | {agent: {} for agent in self.possible_agents}
+        self.infos = {'round_finished': False} | {agent: {} for agent in self.possible_agents}
 
         self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
         self.truncations = {agent: False for agent in self.possible_agents}
@@ -567,14 +567,14 @@ class GMEnv(ptz.AECEnv):
         terminations : dict of str to bool
             Boolean flags indicating if agents have terminated.
         truncations : dict of str to bool
-            Boolean flags indicating if agents were truncated (episode limit reached).
+            Boolean flags indicating if agents were truncated (round limit reached).
         infos : dict
             Additional info.
 
         Raises
         ------
         ValueError
-            If the maximum number of episodes has been reached or an invalid action
+            If the maximum number of rounds has been reached or an invalid action
             has been performed given the current agent.
 
         Notes
@@ -590,8 +590,8 @@ class GMEnv(ptz.AECEnv):
         action, ok = self._assert_and_format_action(curr_agent, action)
 
         # Update state given current action
-        if self.episode >= self.n_episodes:
-            raise ValueError('Maximum number of episodes reached')
+        if self.round >= self.n_rounds:
+            raise ValueError('Maximum number of rounds reached')
         if not ok:
             raise ValueError(f'Action `{action}` is not valid for agent {curr_agent}')
 
@@ -612,24 +612,24 @@ class GMEnv(ptz.AECEnv):
                 self.cumulative_rewards[agent] = round(self.cumulative_rewards[agent] + self.rewards[agent], self.decimal_places)
 
         # Update observations
-        # Infos, truncations and terminations will be updated only if the episode ends
+        # Infos, truncations and terminations will be updated only if the round ends
         self.observations = {agent: self.observe(agent) for agent in self.possible_agents}
 
         # Render the environment
         if self.render_mode == 'human':
             self.render()
 
-        # Update for next episode and upadate infos, terminations and truncations
+        # Update for next round and upadate infos, terminations and truncations
         if self._agent_selector.is_last():
-            self.episode += 1
+            self.round += 1
             self._true_value = self.generate_vt()
 
             self.trader = str(self._np_random.choice(self.traders))
-            self.agents = self.makers + [self.trader] if self.episode < self.n_episodes else []
+            self.agents = self.makers + [self.trader] if self.round < self.n_rounds else []
 
-            self.infos = {'episode_finished': True} | {agent: self.inform(agent) for agent in self.possible_agents}
+            self.infos = {'round_finished': True} | {agent: self.inform(agent) for agent in self.possible_agents}
             self.terminations = {agent: not agent in self.agents for agent in self.possible_agents}
-            self.truncations = {agent: self.episode >= self.n_episodes for agent in self.possible_agents}
+            self.truncations = {agent: self.round >= self.n_rounds for agent in self.possible_agents}
 
             # Variables reset will be handled by the decorator
         self.agent_selection = self._agent_selector.next()
@@ -657,7 +657,7 @@ class GMEnv(ptz.AECEnv):
         - 'ascii': returns the string representation of the environment.
         """
         if self.render_mode is None:
-            raise ValueError('calling render method without specifying any render mode')
+            raise ValueError('Calling render method without specifying any render mode')
 
         if self.render_mode == 'human':
             print(self)
@@ -828,7 +828,7 @@ class GMEnv(ptz.AECEnv):
 
 
     def __str__(self) -> str:
-        s = f'Episode {self.episode}/{self.n_episodes}:\n' + \
+        s = f'round {self.round}/{self.n_rounds}:\n' + \
             f' - true value -> {self.true_value}\n' + \
             f' - curr. agent -> {self.agent_selection}\n' + \
             f' - min ask price -> {self.min_ask_price}\n' + \
