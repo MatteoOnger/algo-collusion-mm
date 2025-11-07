@@ -5,7 +5,7 @@ import numpy as np
 from abc import abstractmethod
 from typing import Dict
 
-from ..agent import Agent, AgentType
+from ..agent import Agent
 
 
 

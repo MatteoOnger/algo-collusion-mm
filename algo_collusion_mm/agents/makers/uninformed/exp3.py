@@ -4,7 +4,7 @@ import numpy as np
 
 from typing import Callable, Dict
 
-from .maker import Maker
+from ..maker import Maker
 
 
 

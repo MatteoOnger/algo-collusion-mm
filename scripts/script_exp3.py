@@ -9,7 +9,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Tuple
 
-from algo_collusion_mm.agents.makers.exp3 import MakerEXP3
+from algo_collusion_mm.agents.makers.uninformed.exp3 import MakerEXP3
 from algo_collusion_mm.agents.traders.nopass import NoPassTrader
 from algo_collusion_mm.envs import GMEnv
 from algo_collusion_mm.utils.common import get_calvano_collusion_index

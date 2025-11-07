@@ -2,7 +2,7 @@
 """
 from typing import Dict
 
-from ..agent import Agent, AgentType
+from ..agent import Agent
 
 
 
@@ -16,7 +16,7 @@ class Trader(Agent):
     keep track of actions taken and the rewards received.
     """
 
-    agent_type = AgentType.TRADER
+    agent_type = False
 
 
     def __init__(self, name: str = 'trader', seed: int|None = None):
