@@ -23,6 +23,9 @@ class Agent(ABC):
         Internal tracker of actions taken, rewards and other infos.
     """
 
+    is_informed = False
+    """Indicates whether the agent receives extra information after each action."""
+
 
     def __init__(self, name: str = 'agent', seed: int|None = None):
         """

@@ -46,6 +46,9 @@ class MakerEXP3(Maker):
     In Proceedings of IEEE 36th annual foundations of computer science (pp. 322-331). IEEE.
     """
 
+    is_informed = False
+
+
     def __init__(
         self,
         epsilon: float,

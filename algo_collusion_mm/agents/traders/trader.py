@@ -2,7 +2,7 @@
 """
 from typing import Dict
 
-from ..agent import Agent
+from ..agent import Agent, AgentType
 
 
 
@@ -15,6 +15,9 @@ class Trader(Agent):
     Traders are stateless agents, so the history is only used to
     keep track of actions taken and the rewards received.
     """
+
+    agent_type = AgentType.TRADER
+
 
     def __init__(self, name: str = 'trader', seed: int|None = None):
         super().__init__(name, seed)

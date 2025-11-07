@@ -54,6 +54,8 @@ class MakerInformedQL(Maker):
         Index of the current state of the agent.
     """
 
+    is_informed = True
+
     _scheduler = {
         'constant': lambda eps, dr, t: eps,
         'exponential': lambda eps, dr, t: eps * np.e**(-t * dr),

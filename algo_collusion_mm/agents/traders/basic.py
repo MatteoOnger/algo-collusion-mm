@@ -32,6 +32,9 @@ class BasicTrader(Trader):
         Stores the last action taken (used for 'alt' tie-breaker).
     """
 
+    is_informed = False
+
+
     def __init__(
         self,
         tie_breaker: Literal['buy', 'sell', 'rand', 'alt'] = 'rand',

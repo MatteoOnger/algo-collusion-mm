@@ -41,6 +41,9 @@ class MakerHedge(Maker):
     In Proceedings of IEEE 36th annual foundations of computer science (pp. 322-331). IEEE.
     """
 
+    is_informed = True
+
+
     def __init__(
         self,
         epsilon: float,

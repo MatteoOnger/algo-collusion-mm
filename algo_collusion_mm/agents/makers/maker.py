@@ -5,7 +5,7 @@ import numpy as np
 from abc import abstractmethod
 from typing import Dict
 
-from ..agent import Agent
+from ..agent import Agent, AgentType
 
 
 
@@ -36,6 +36,9 @@ class Maker(Agent):
         of the action in the action space, otherwise it is a tuple containing the index of the action
         and additional information (e.g., the probability of selection).
     """
+
+    is_informed = False
+
 
     def __init__(
         self,

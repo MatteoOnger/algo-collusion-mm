@@ -40,6 +40,8 @@ class MakerMLQL(Maker):
         Current Q-value for each arm.
     """
 
+    is_informed = False
+
     _scheduler = {
         'constant': lambda eps, dr, t: eps,
         'exponential': lambda eps, dr, t: eps * np.e**(-t * dr),
@@ -178,6 +180,9 @@ class MakerInformedMLQL(MakerMLQL):
     its Q-values using additional information from the environment (provided in the `info` dictionary)
     to estimate the reward it would have received if it had taken a different action.
     """
+
+    is_informed = True
+
 
     def update(self, reward: float, info: Dict[str, np.ndarray]) -> None:
         """
