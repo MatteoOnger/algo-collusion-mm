@@ -133,7 +133,7 @@ class GMEnv(ptz.AECEnv):
         n_traders: int,
         low: float = 0.0,
         high: float = 1.0,
-        agents_action_space: Dict[str, np.ndarray] = dict(), 
+        agents_action_space: Dict[str, np.ndarray]|np.ndarray = dict(), 
         decimal_places: int = 2,
         render_mode: Literal['ascii', 'human'] = 'ascii'
     ):
@@ -154,10 +154,11 @@ class GMEnv(ptz.AECEnv):
             Minimum possible price or asset value.
         high : float, default=1.0
             Maximum possible price or asset value.
-        agents_action_space: dict of str to np.ndarray, default={}
+        agents_action_space: dict of str to np.ndarray or np.ndarray, default={}
             Mapping from agent names to their respective action spaces. Each action space must be 
             a subset or a discretization of the environment's action space (i.e., of `self`). 
-            This parameter is used only to inform informed agents.
+            This parameter is used only to inform informed agents. If a single np.ndarray is provided,
+            it is assumed to be the action space for all informed makers.
         decimal_places : int, default=2
             Number of decimal places to which rewards are rounded.
         render_mode : {'ascii', 'human'}, default='ascii'
@@ -270,6 +271,9 @@ class GMEnv(ptz.AECEnv):
         """Indicates whether each agent has terminated."""
         self.truncations: Dict[str, bool]
         """Indicates whether each agent was truncated."""
+
+        if isinstance(self.agents_action_space, np.ndarray):
+            self.agents_action_space = {maker: agents_action_space for maker in self.makers_i}
 
         for maker in self.makers_i:
             if maker not in self.agents_action_space.keys():
