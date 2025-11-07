@@ -4,6 +4,7 @@ import functools
 import gymnasium as gym
 import numpy as np
 import pettingzoo as ptz
+import warnings
 
 from enum import Enum
 from pettingzoo.utils import AgentSelector
@@ -269,6 +270,13 @@ class GMEnv(ptz.AECEnv):
         """Indicates whether each agent has terminated."""
         self.truncations: Dict[str, bool]
         """Indicates whether each agent was truncated."""
+
+        for maker in self.makers_i:
+            if maker not in self.agents_action_space.keys():
+                warnings.warn(
+                    f'Informed maker `{maker}` has no action space defined in `agents_action_space`. '
+                    'It will not receive reward information.'
+                )
         return
 
 
