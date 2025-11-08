@@ -255,7 +255,6 @@ def multiple_runs(
         stats_sorted_cci,
         stats_action_freq,
         stats_joint_action_freq,
-        annot = True,
         title = f'Makers Statistics Summary Plot - Epsilon:{list(agents.values())[0].epsilon}'
     )
     saver.save_figures({f'PLOT': fig})

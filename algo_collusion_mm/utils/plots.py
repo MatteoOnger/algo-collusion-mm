@@ -7,7 +7,7 @@ import numpy as np
 import seaborn as sns
 
 from IPython.display import display
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 
 from ..agents.makers.maker import Maker
 from ..utils.stats import OnlineVectorStats
@@ -32,7 +32,7 @@ def plot_all(
     makers: List[Maker],
     makers_belief_name: List[str]|str,
     cci: np.ndarray,
-    annot: bool = True,
+    annot: Literal['all', 'none', 'above_mean'] = 'above_mean',
     title: str = 'Makers Summary Plot'
 ) -> plt.Figure:
     """
@@ -60,8 +60,11 @@ def plot_all(
         List of names of the maker variable representing the belief of each agent.
     cci : np.ndarray
         Array of shape (n_agents, n_windows) containing the CCI values per agent.
-    annot : bool, default=True
-        If True, display the frequency value inside each cell of the heatmaps.
+    annot : {'all', 'none', 'above_mean'}, default='above_mean'
+        Controls whether and how to annotate heatmap cells:
+        - `'all'` — annotate all cells.
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells with values above the matrix mean.
     title : str, default='Makers Summary Plot'
         Title of the generated figure.
 
@@ -86,7 +89,7 @@ def plot_all(
     if n_makers == 2:
         n_rows += 1  # Add combined action plots
 
-    fig = plt.figure(figsize=(6 * n_makers, 4 * n_rows))
+    fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows))
     fig.suptitle(title, fontsize=20)
 
     gs = gridspec.GridSpec(n_rows, n_makers, figure=fig)
@@ -146,7 +149,7 @@ def plot_all(
         plot_makers_joint_actions_freq(
             makers = makers,
             round_range = slice(window_size),
-            annot = False,
+            annot = annot,
             title = 'Joint Actions Frequency - First Window',
             ax = ax_comb_1
         )
@@ -157,7 +160,7 @@ def plot_all(
         plot_makers_joint_actions_freq(
             makers = makers,
             round_range = slice(-window_size, None),
-            annot = False,
+            annot = annot,
             title = 'Joint Actions Frequency - Last Window',
             ax = ax_comb_2
         )
@@ -176,7 +179,7 @@ def plot_all_stats(
     stats_sorted_cci: OnlineVectorStats|None = None,
     stats_actions_freq: OnlineVectorStats|None = None,
     stats_joint_actions_freq: OnlineVectorStats|None = None,
-    annot: bool = True,
+    annot: Literal['all', 'none', 'above_mean'] = 'above_mean',
     title: str = 'Makers Statistics Summary Plot',
 ) -> plt.Figure:
     """
@@ -210,8 +213,11 @@ def plot_all_stats(
     stats_joint_actions_freq : OnlineVectorStats, optional
         Online statistics tracker for joint action frequencies between makers.
         If provided and there are exactly two makers, a joint frequency heatmap is plotted.
-    annot : bool, default=True
-        If True, display the frequency value inside each cell of the heatmaps.
+    annot : {'all', 'none', 'above_mean'}, default='above_mean'
+        Controls whether and how to annotate heatmap cells:
+        - `'all'` — annotate all cells.
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells with values above the matrix mean.
     title : str, default='Makers Statistics Summary Plot'
         Title of the generated figure.
 
@@ -225,7 +231,7 @@ def plot_all_stats(
     n_rows = (stats_cci is not None) + (stats_sorted_cci is not None) + (stats_actions_freq is not None) + ((stats_joint_actions_freq is not None) and (n_makers == 2))
     row = 0
 
-    fig = plt.figure(figsize=(6 * n_makers, 4 * n_rows), constrained_layout=True)
+    fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows), constrained_layout=True)
     fig.suptitle(title, fontsize=20)
 
     gs = gridspec.GridSpec(n_rows, n_makers, figure=fig)
@@ -260,15 +266,19 @@ def plot_all_stats(
 
     if stats_actions_freq is not None:
         for i, maker in enumerate(makers):
-            matrix = np.full(2 * (len(maker.prices),), np.nan)
-            matrix[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, :]
+            matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
+            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, :]
             
+            matrix_std = np.full(2 * (len(maker.prices),), np.nan)
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std()[i, :]
+
             subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
             plot_maker_actions_freq(
                 maker = maker,
-                matrix = matrix,
-                annot = True,
+                matrix = matrix_mean,
+                matrix_stdev = matrix_std,
+                annot = annot,
                 title = 'Mean Rel. Actions Freq. - Last Window',
                 ax = ax
             )
@@ -279,6 +289,7 @@ def plot_all_stats(
         plot_makers_joint_actions_freq(
             makers = makers,
             matrix = stats_joint_actions_freq.get_mean(),
+            matrix_stdev = stats_joint_actions_freq.get_std(),
             annot = annot,
             title = 'Mean Rel. Joint Actions Freq. - Last Window',
             ax = ax
@@ -335,22 +346,23 @@ def plot_maker_actions(
 def plot_maker_actions_freq(
     maker: Maker,
     matrix: np.ndarray|None = None,
+    matrix_stdev: np.ndarray|None = None,
     round_range: slice = slice(None),
-    annot: bool = True,
     normalize: bool = True,
+    annot: Literal['all', 'none', 'above_mean'] = 'all',
     title: str = 'Actions Frequency',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
     Plot a heatmap showing the frequency of a maker's ask/bid price actions.
 
-    This function visualizes how frequently a trading agent (the maker) selected 
-    each ask/bid price combination over a specified range of rounds. 
-    The resulting heatmap displays either raw frequencies or normalized probabilities 
-    (if `normalize=True`) for each pair of ask and bid prices.
+    This function visualizes how often a trading agent (the maker) selected each
+    ask/bid price combination over a given range of rounds. The resulting heatmap
+    can display either raw frequencies or normalized probabilities (if `normalize=True`).
 
-    If a precomputed frequency matrix is not provided via `matrix`, the function 
-    computes it using the maker's recorded trading history.
+    Optionally, a standard deviation matrix (`matrix_stdev`) can be provided to
+    display uncertainty information alongside the mean frequency values when
+    `annot='above_mean'`.
 
     Parameters
     ----------
@@ -358,15 +370,26 @@ def plot_maker_actions_freq(
         The maker instance containing the trading history and price grid.
     matrix : np.ndarray or None, default=None
         A 2D array representing the ask/bid frequency matrix to plot.
-        Each entry at position (i, j) corresponds to ask price i and bid price j.
-        If None, the matrix is computed from `maker.history` over the specified `round_range`.
+        Each entry at position (i, j) corresponds to the frequency of choosing
+        bid price `j` and ask price `i`. If None, the matrix is computed from
+        `maker.history` over the specified `round_range`.
+    matrix_stdev : np.ndarray or None, default=None
+        A 2D array of the same shape as `matrix`, representing the standard
+        deviation (or uncertainty) associated with each cell value. If provided,
+        values are displayed as “value ± stdev” in the heatmap annotations when
+        `annot='above_mean'`.
     round_range : slice, default=slice(None)
         The range of rounds to include when computing the action frequencies.
         Ignored if `matrix` is provided.
-    annot : bool, default=True
-        If True, display the frequency value inside each cell of the heatmap.
     normalize : bool, default=True
-        If True, normalize frequencies so that the total sum equals 1.
+        If True, normalize frequencies so that the total sum equals 1, converting
+        raw counts to probabilities.
+    annot : {'all', 'none', 'above_mean'}, default='all'
+        Controls whether and how to annotate heatmap cells:
+        - `'all'` — annotate all cells with their values.
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells with values above the matrix mean.
+          If `matrix_stdev` is provided, these annotations include “± stdev”.
     title : str, default='Actions Frequency'
         Title of the heatmap. The maker's name is automatically appended.
     ax : matplotlib.axes.Axes or None, default=None
@@ -380,7 +403,11 @@ def plot_maker_actions_freq(
 
     Notes
     -----
-    - The x-axis corresponds to ask prices, and the y-axis corresponds to bid prices.
+    - The x-axis corresponds to ask prices.
+    - The y-axis corresponds to bid prices.
+    - If `normalize=True`, cell values represent relative frequencies (sum to 1).
+    - If `matrix` is provided, it will be transposed to match the expected orientation.
+    - If `matrix_stdev` is provided, it will also be transposed automatically.
     """
     if ax is None:
         _, ax = plt.subplots()
@@ -396,11 +423,40 @@ def plot_maker_actions_freq(
         matrix[unique_actions[:, 1], unique_actions[:, 0]] = freqs
     else:
         matrix = matrix.T
+        matrix_stdev = matrix_stdev.T if matrix_stdev is not None else None
+
+    fmt = ''
+    base_line = 12 if matrix_stdev is None else 10
+    if annot == 'all':
+        if matrix_stdev is None:
+            annotations = True
+            fmt = f'.{DECIMAL_PLACES_VALUES}f' if normalize else '.0f'
+        else:
+            annotations = np.empty_like(matrix, dtype=object)
+            for i in range(matrix.shape[0]):
+                for j in range(matrix.shape[1]):
+                    annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}\n±{matrix_stdev[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+    elif annot == 'none':
+        annotations = False
+        fmt = f'.{DECIMAL_PLACES_VALUES}f' if normalize else '.0f'
+    elif annot == 'above_mean':
+        mean_val = np.nanmean(matrix)
+        annotations = np.empty_like(matrix, dtype=object)
+        for i in range(matrix.shape[0]):
+            for j in range(matrix.shape[1]):
+                if matrix[i, j] > mean_val:
+                    if matrix_stdev is None:
+                        annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+                    else:
+                        annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}\n±{matrix_stdev[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+                else:
+                    annotations[i, j] = ''
 
     sns.heatmap(
         matrix,
-        annot = annot,
-        fmt = f'.{DECIMAL_PLACES_VALUES}f' if normalize else '.0f',
+        annot = annotations,
+        annot_kws = {'size': max(5, base_line - 0.5 * np.log10(matrix.size))},
+        fmt = fmt,
         cmap = 'viridis',
         cbar = True,
         xticklabels = maker.prices,
@@ -418,41 +474,44 @@ def plot_maker_belief(
     maker: Maker,
     belief_name: str,
     ronud_range: slice = slice(None),
-    annot: bool = True,
+    annot: Literal['all', 'none', 'above_mean'] = 'all',
     title: str = 'Belief',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot a heatmap showing the maker's belief or related variable across bid/ask prices.
+    Plot a heatmap of the maker's belief or related variable across bid and ask prices.
 
-    This function visualizes a 2D matrix of values representing the maker's internal belief 
-    state or a related variable (specified by `belief_name`) mapped to bid/ask price combinations. 
-    The belief data is retrieved dynamically using its name. If `belief_name` is 'extra', 
-    the data is obtained from `maker.history.get_extras(ronud_range)` instead.
+    This function visualizes a 2D matrix representing the maker's internal belief 
+    (or another related variable specified by `belief_name`) over combinations 
+    of bid and ask prices. The belief data is retrieved dynamically from the 
+    `Maker` instance. If `belief_name` is `'extra'`, the data is instead obtained 
+    from `maker.history.get_extras(round_range)`.
 
     Parameters
     ----------
     maker : Maker
-        The maker instance containing the relevant data and price levels.
+        The maker instance containing relevant price data and internal belief variables.
     belief_name : str
-        Name of the maker variable representing the belief or related quantity 
-        (e.g. 'belief', 'q_values', 'v_values', 'policy', etc.). 
-        If 'extra', the data is retrieved via `maker.history.get_extras()`.
-    ronud_range : slice, default=slice(None)
-        The range of rounds to consider when retrieving the belief data 
-        (used only if `belief_name == 'extra'`).
-    annot : bool, default=True
-        If True, write the data value in each cell.
+        Name of the maker attribute representing the belief or related quantity 
+        (e.g., `'belief'`, `'q_values'`, `'v_values'`, `'policy'`, etc.). 
+        If `'extra'`, the data is retrieved via `maker.history.get_extras(round_range)`.
+    round_range : slice, default=slice(None)
+        The range of rounds to consider when retrieving belief data.
+        Used only when `belief_name == 'extra'`.
+    annot : {'all', 'none', 'above_mean'}, default='all'
+        Controls whether and how to annotate cells with their values:
+        - `'all'` — annotate all cells.
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells with values above the matrix mean.
     title : str, default='Belief'
         Title of the plot.
     ax : matplotlib.axes.Axes or None, default=None
-        The matplotlib axis on which to draw the heatmap. If None, a new axis is created.
+        Axis on which to draw the heatmap. If None, a new axis is created.
 
     Returns
     -------
     : matplotlib.axes.Axes
-        The axis object containing the generated heatmap.
-
+        The axis containing the generated heatmap.
     """
     if ax is None:
         _, ax = plt.subplots()
@@ -463,10 +522,27 @@ def plot_maker_belief(
     matrix = np.full(2*(len(maker.prices),), np.nan)
     matrix[unique_actions[:, 1], unique_actions[:, 0]] = freqs
 
+    if annot == 'all':
+        annotations = True
+        fmt = f'.{DECIMAL_PLACES_VALUES}f'
+    elif annot == 'none':
+        annotations = False
+        fmt = f'.{DECIMAL_PLACES_VALUES}f'
+    elif annot == 'above_mean':
+        annotations = np.empty_like(matrix, dtype=object)
+        fmt = ''
+        for i in range(matrix.shape[0]):
+            for j in range(matrix.shape[1]):
+                if matrix[i, j] > np.nanmean(matrix):
+                    annotations[i, j] = f'{matrix[i, j]:.2f}'
+                else:
+                    annotations[i, j] = ''  
+
     sns.heatmap(
         matrix,
-        annot = annot,
-        fmt = f'.{DECIMAL_PLACES_VALUES}f',
+        annot = annotations,
+        annot_kws = {'size': max(5, 12 - 0.5 * np.log10(matrix.size))},
+        fmt = fmt,
         cmap = 'viridis',
         cbar = True,
         xticklabels = maker.prices,
@@ -474,7 +550,7 @@ def plot_maker_belief(
         ax = ax
     )
 
-    ax.set_title(f'{title} ({belief_name}) -  {maker.name.capitalize()}')
+    ax.set_title(f'{title} ({belief_name}) - {maker.name.capitalize()}')
     ax.set_xlabel('Ask Price')
     ax.set_ylabel('Bid Price')
     return ax
@@ -804,22 +880,24 @@ def plot_makers_cci(
 def plot_makers_joint_actions_freq(
     makers: Tuple[Maker, Maker],
     matrix: np.ndarray|None = None,
+    matrix_stdev: np.ndarray|None = None,
     round_range: slice = slice(None),
-    annot: bool = True,
     normalize: bool = True,
+    annot: Literal['all', 'none', 'above_mean'] = 'all',
     title: str = 'Joint Actions Frequency',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot a heatmap showing the frequency of joint actions taken by two makers.
+    Plot a heatmap showing the joint action frequencies of two makers.
 
-    This function visualizes how often pairs of actions (one from each maker)
-    occur together across a specified range of rounds. The resulting heatmap
-    provides insight into the interaction or correlation between the two makers'
-    behavior, with frequencies optionally normalized to sum to one.
+    This function visualizes how often pairs of actions — one from each maker —
+    occur together over a given range of rounds. The resulting heatmap provides
+    insight into correlations or interactions between the two makers' behaviors.
+    Frequencies can be normalized to sum to 1. Optionally, a standard deviation
+    matrix can be provided to display uncertainty alongside each cell.
 
-    If a precomputed joint frequency matrix is not provided via `matrix`, it will
-    be constructed from both makers' recorded action histories.
+    If a precomputed joint frequency matrix is not provided via `matrix`, it is
+    automatically constructed from the makers' recorded action histories.
 
     Parameters
     ----------
@@ -827,28 +905,32 @@ def plot_makers_joint_actions_freq(
         A tuple containing exactly two `Maker` instances whose joint action
         frequencies will be computed and visualized.
     matrix : np.ndarray or None, default=None
-        A 2D array representing the joint frequency of actions between the two makers.
-        The entry at position (i, j) corresponds to how often maker 1 took action i
-        while maker 2 took action j. If None, the matrix is computed automatically
-        from each maker's recorded action history over the given `round_range`.
+        A 2D array representing the joint frequency of actions. The entry at
+        position (i, j) corresponds to how often maker 1 took action `j` while
+        maker 2 took action `i`. If None, the matrix is computed from the makers'
+        recorded histories over the given `round_range`.
+    matrix_stdev : np.ndarray or None, default=None
+        Optional 2D array of standard deviations corresponding to `matrix`. Used
+        to annotate each cell with ± value if provided.
     round_range : slice, default=slice(None)
-        The range of rounds to include when computing the joint action frequencies.
+        The range of rounds to include when computing joint action frequencies.
         Ignored if `matrix` is provided.
-    annot : bool, default=True
-        If True, annotate each cell of the heatmap with its numeric value.
     normalize : bool, default=True
-        If True, normalize frequencies so that their sum equals 1. If False, raw
-        frequency counts are plotted.
+        If True, normalize frequencies so that the total sum equals 1.
+    annot : {'all', 'none', 'above_mean'}, default='all'
+        Controls cell annotations:
+        - `'all'` — annotate every cell with its value (and ± if `matrix_stdev` is given).
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells with values above the matrix mean.
     title : str, default='Joint Actions Frequency'
-        Title of the plot.
+        The title of the heatmap.
     ax : matplotlib.axes.Axes or None, default=None
-        The Matplotlib axis on which to draw the heatmap. If None, a new figure
-        and axis are created.
+        Axis on which to draw the heatmap. If None, a new figure and axis are created.
 
     Returns
     -------
     : matplotlib.axes.Axes
-        The Matplotlib axis object containing the rendered heatmap.
+        The axis object containing the rendered heatmap.
 
     Raises
     ------
@@ -857,8 +939,12 @@ def plot_makers_joint_actions_freq(
 
     Notes
     -----
-    - The x-axis corresponds to actions taken by the first maker (`makers[0]`),
-      and the y-axis corresponds to actions taken by the second maker (`makers[1]`).
+    - The x-axis corresponds to actions taken by the first maker (`makers[0]`).
+    - The y-axis corresponds to actions taken by the second maker (`makers[1]`).
+    - If `normalize=True`, cell values represent relative frequencies (sum to 1).
+    - If a precomputed matrix is provided, it is transposed to match the expected
+      orientation (x-axis = maker 1, y-axis = maker 2).
+    - Annotations display values in decimal format controlled by `DECIMAL_PLACES_VALUES`.
     """
     if ax is None:
         _, ax = plt.subplots()
@@ -880,11 +966,40 @@ def plot_makers_joint_actions_freq(
         matrix[unique_joint_actions[:, 1], unique_joint_actions[:, 0]] = freqs
     else:
         matrix = matrix.T
+        matrix_stdev = matrix_stdev.T if matrix_stdev is not None else None
+
+    fmt = ''
+    base_line = 12 if matrix_stdev is None else 10
+    if annot == 'all':
+        if matrix_stdev is None:
+            annotations = True
+            fmt = f'.{DECIMAL_PLACES_VALUES}f' if normalize else '.0f'
+        else:
+            annotations = np.empty_like(matrix, dtype=object)
+            for i in range(matrix.shape[0]):
+                for j in range(matrix.shape[1]):
+                    annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}\n±{matrix_stdev[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+    elif annot == 'none':
+        annotations = False
+        fmt = f'.{DECIMAL_PLACES_VALUES}f' if normalize else '.0f'
+    elif annot == 'above_mean':
+        mean_val = np.nanmean(matrix)
+        annotations = np.empty_like(matrix, dtype=object)
+        for i in range(matrix.shape[0]):
+            for j in range(matrix.shape[1]):
+                if matrix[i, j] > mean_val:
+                    if matrix_stdev is None:
+                        annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+                    else:
+                        annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}\n±{matrix_stdev[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+                else:
+                    annotations[i, j] = ''
 
     sns.heatmap(
         matrix,
-        annot = annot,
-        fmt = f'.{DECIMAL_PLACES_VALUES}f' if normalize else 'd',
+        annot = annotations,
+        annot_kws = {'size': max(5, base_line - 0.5 * np.log10(matrix.size))},
+        fmt = fmt,
         cmap = 'viridis',
         cbar = True,
         xticklabels = makers[0].action_space,
