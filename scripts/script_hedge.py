@@ -367,7 +367,6 @@ if __name__ == '__main__':
     epsilons = np.round(np.concat([
         x - np.arange(1,  8)[::-1] * 0.0005,
         np.array([x]),
-        np.array([x + 0.005]),
         x + np.arange(1,  6) * 0.0005,
         x + 0.0025 + np.arange(1, 11) * 0.0010,
         x + 0.0125 + np.arange(1, 21) * 0.0050,
