@@ -9,7 +9,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Tuple
 
-from algo_collusion_mm.agents.makers.uninformed.exp3 import MakerEXP3
+from algo_collusion_mm.agents.makers.informed.hedge import MakerHedge
 from algo_collusion_mm.agents.traders.nopass import NoPassTrader
 from algo_collusion_mm.envs import GMEnv
 from algo_collusion_mm.utils.common import get_calvano_collusion_index
@@ -18,7 +18,7 @@ from algo_collusion_mm.utils.storage import ExperimentStorage
 
 
 
-BASE_PATH = os.path.join('.', 'experiments', 'exp3')
+BASE_PATH = os.path.join('.', 'experiments', 'hedge')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
 
@@ -29,7 +29,7 @@ def multiple_runs(
     scale_rewards: Callable[[float], float],
     agents_fixed_params: Dict[str, Any],
     agents_variable_params: Dict[str, Any],
-    n_makers_u: int,
+    n_makers_i: int,
     n_traders: int,
     action_space: np.ndarray,
     nash_reward: float,
@@ -43,7 +43,7 @@ def multiple_runs(
     Run multiple independent episodes in a Glosten-Milgrom market simulation.
 
     This function performs several independent runs of a simulated Glosten-Milgrom 
-    financial market populated by uninformed market makers basedd on EXP3 as well as traders. 
+    financial market populated by informed market makers basedd on Hedge as well as traders.
     In each run, all agents are reinitialized and reseeded before simulating a sequence 
     of trading rounds. Performance metrics such as the Calvano Collusion Index (CCI), 
     reward statistics, and action frequencies are computed over rolling time windows.
@@ -64,8 +64,8 @@ def multiple_runs(
     agents_variable_params : Dict[str, Any]
         Dictionary containing per-run or per-agent parameters 
         (e.g., random seed, tie-breaking rules).
-    n_makers_u : int
-        Number of uninformed market makers.
+    n_makers_i : int
+        Number of informed market makers.
     n_traders : int
         Number of traders in the environment.
     action_space : np.ndarray
@@ -77,7 +77,7 @@ def multiple_runs(
     saver_base_path : str
         Base directory where experiment results, logs, and generated plots are saved.
     n_episodes : int, default=100
-        Number of independent episode repetitions.
+        Number of independent episodes repetitions.
     n_rounds : int, default=10_000
         Number of trading rounds per episode run.
     n_windows : int, default=100
@@ -120,11 +120,11 @@ def multiple_runs(
     window_size = n_rounds // n_windows   # Window size
 
     # To compute online statistics
-    stats_cci = OnlineVectorStats((n_makers_u, n_windows))
-    stats_sorted_cci = OnlineVectorStats((n_makers_u, n_windows))
-    stats_action_freq = OnlineVectorStats((n_makers_u, len(action_space)))
-    stats_joint_action_freq = OnlineVectorStats((len(action_space),) * n_makers_u)
-    stats_rwd = OnlineVectorStats(n_makers_u)
+    stats_cci = OnlineVectorStats((n_makers_i, n_windows))
+    stats_sorted_cci = OnlineVectorStats((n_makers_i, n_windows))
+    stats_action_freq = OnlineVectorStats((n_makers_i, len(action_space)))
+    stats_joint_action_freq = OnlineVectorStats((len(action_space),) * n_makers_i)
+    stats_rwd = OnlineVectorStats(n_makers_i)
 
     # To save experimental results
     saver = ExperimentStorage(saver_base_path)
@@ -135,12 +135,12 @@ def multiple_runs(
 
     # Create agents
     agents = {
-        f'maker_u_{i}':MakerEXP3(
-            name = f'maker_u_{i}',
+        f'maker_i_{i}':MakerHedge(
+            name = f'maker_i_{i}',
             scale_rewards = scale_rewards,
             **agents_fixed_params['maker'],
             **agents_variable_params['maker']
-        ) for i in range(n_makers_u)
+        ) for i in range(n_makers_i)
     } | {
         f'trader_{i}':NoPassTrader(
             name = f'trader{i}',
@@ -153,14 +153,15 @@ def multiple_runs(
     env = GMEnv(
         generate_vt = generate_vt,
         n_rounds = n_rounds,
-        n_makers_u = n_makers_u,
-        n_makers_i = 0,
+        n_makers_u = 0,
+        n_makers_i = n_makers_i,
         n_traders = n_traders,
+        agents_action_space = action_space
     )
 
     for i in range(n_episodes):
         if i % 10 == 0:
-            saver.print_and_save(f'Running {i} ...', silent=True)
+            saver.print_and_save(f'Running episode {i} ...', silent=True)
 
         # Reset env
         _, info = env.reset()
@@ -228,7 +229,7 @@ def multiple_runs(
         ]).T
         unique_joint_actions, freqs = np.unique(joint_actions, return_counts=True, axis=0)
         
-        matrix = np.zeros(n_makers_u * (len(action_space),))
+        matrix = np.zeros(n_makers_i * (len(action_space),))
         matrix[tuple(unique_joint_actions.T)] = freqs / window_size
 
         # Update statistics
@@ -357,15 +358,16 @@ if __name__ == '__main__':
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     saver.print_and_save(f'Started at {current_time}')
 
-    n_makers_u = 2
-    r, n, k = 250, 20_000, 100
+    n_makers_i = 2
+    r, n, k = 100, 20_000, 100
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
 
-    x = MakerEXP3.compute_epsilon(len(action_space), n)
+    x = 0.003 #MakerHedge.compute_epsilon(len(action_space), n)
     epsilons = np.round(np.concat([
         x - np.arange(1,  8)[::-1] * 0.0005,
         np.array([x]),
+        np.array([x + 0.005]),
         x + np.arange(1,  6) * 0.0005,
         x + 0.0025 + np.arange(1, 11) * 0.0010,
         x + 0.0125 + np.arange(1, 21) * 0.0050,
@@ -379,7 +381,7 @@ if __name__ == '__main__':
     # Experiment params
     fixed_params = {
         'env': {
-            'n_makers_u': n_makers_u,
+            'n_makers_i': n_makers_i,
             'n_traders': 1,
             'action_space': action_space,
             'nash_reward': 0.1,
@@ -442,7 +444,7 @@ if __name__ == '__main__':
             f' - [CCI] Standard deviation: {np.round(std_cci[:, -1], 4)}\n'
             f' - [CCI] Minimum and Maximum:{np.round(min_cci[:, -1], 4)}, {np.round(max_cci[:, -1], 4)}\n'
             f' - [ACTION] Most common: {str(action_space[most_common_action_idx]).replace('\n', '')}\n'
-            f' - [ACTION] Relative frequency: {np.round(mean_action_freq[np.arange(n_makers_u), most_common_action_idx], 4)}\n'
+            f' - [ACTION] Relative frequency: {np.round(mean_action_freq[np.arange(n_makers_i), most_common_action_idx], 4)}\n'
             f' - [JOINT ACTION] Most common: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}\n'
             f' - [JOINT ACTION] Relative frequency: {np.round(mean_joint_action_freq[most_common_joint_action_idx], 4)}'
         )
@@ -461,11 +463,11 @@ if __name__ == '__main__':
         std = lw_std_cci,
         min = lw_min_cci,
         max = lw_max_cci,
-        makers_name = [f'maker_u_{i}' for i in range(n_makers_u)],
+        makers_name = [f'maker_u_{i}' for i in range(n_makers_i)],
         title = 'Mean CCI wrt. Epsilons - Last Window',
         ax = axis
     )
-    axis.axvline(7, ls='--', color='black', alpha=0.7)
+    axis.axvline(47, ls='--', color='black', alpha=0.7)
     plt.tight_layout()
     saver.save_figures({'PLOT': fig})
 

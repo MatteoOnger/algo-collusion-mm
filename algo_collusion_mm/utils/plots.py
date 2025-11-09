@@ -252,7 +252,7 @@ def plot_all_stats(
 
     if stats_sorted_cci is not None:
         plot_makers_cci(
-            xlabel = 'Riund',
+            xlabel = 'Round',
             x = window_size * np.arange(stats_cci.dim[1]),
             cci = stats_sorted_cci.get_mean(),
             std = stats_sorted_cci.get_std(sample=False),
