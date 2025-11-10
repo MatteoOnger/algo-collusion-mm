@@ -179,56 +179,82 @@ def plot_all_stats(
     stats_sorted_cci: OnlineVectorStats|None = None,
     stats_actions_freq: OnlineVectorStats|None = None,
     stats_joint_actions_freq: OnlineVectorStats|None = None,
+    stats_belief: OnlineVectorStats|None = None,
     annot: Literal['all', 'none', 'above_mean'] = 'above_mean',
     title: str = 'Makers Statistics Summary Plot',
 ) -> plt.Figure:
     """
-    Create a comprehensive statistical summary plot for multiple maker agents over time.
+    Create a comprehensive summary figure of statistical measures for multiple maker agents.
 
-    This visualization aggregates statistical measures collected during simulation or training,
-    such as the Calvano Collusion Index (CCI), action frequencies, and joint action distributions.
-    It provides insight into the mean and variability of these metrics across time windows.
+    This function compiles several plots summarizing the evolution and variability of 
+    market-making agents' behavior across simulation windows. It visualizes measures 
+    such as the Calvano Collusion Index (CCI), per-maker action frequencies, joint 
+    action frequencies, and belief matrices.
 
-    The figure can include up to four main sections:
-    1. **Mean Calvano Collusion Index (CCI)** - shows the mean, standard deviation, min, and max values over time.
-    2. **Mean Sorted CCI** - displays the same statistics after sorting makers by their CCI values.
-    3. **Mean Relative Action Frequencies** - one subplot per maker showing average frequency of each price/action.
-    4. **Mean Joint Action Frequencies** - shown only when there are exactly two makers, summarizing joint price-action behavior.
+    Depending on the provided statistical trackers, the figure may include up to 
+    five main sections (stacked vertically):
+
+    1. **Mean Calvano Collusion Index (CCI)** — shows per-maker mean, standard deviation,
+       minimum, and maximum CCI values over time.
+    2. **Mean Sorted CCI** — displays the same statistics after sorting makers by CCI.
+    3. **Mean Relative Action Frequencies** — one heatmap per maker, showing average 
+       action frequency matrices for the first and last simulation windows.
+    4. **Mean Joint Action Frequencies** — shown only when there are exactly two makers, 
+       visualizing their joint action distributions for the first and last windows.
+    5. **Mean Final Belief Matrices** — optional section showing each maker's belief matrix 
+       mean and standard deviation across windows.
 
     Parameters
     ----------
     window_size : int
-        Number of rounds per averaging window; defines the x-axis scaling for time-based plots.
-    makers : List[Maker]
-        List of `Maker` objects representing the agents to visualize.
-    stats_cci : OnlineVectorStats, optional
-        Online statistics tracker for the Calvano Collusion Index (CCI) values per maker over time.
-        If provided, a subplot showing mean and variability will be generated.
-    stats_sorted_cci : OnlineVectorStats, optional
-        Online statistics tracker for sorted CCI values per maker over time.
-        If provided, a subplot showing mean and variability of sorted CCIs will be generated.
-    stats_actions_freq : OnlineVectorStats, optional
-        Online statistics tracker for per-maker relative action frequencies.
-        If provided, each maker gets a heatmap subplot showing their mean frequency matrix for the last window.
-    stats_joint_actions_freq : OnlineVectorStats, optional
-        Online statistics tracker for joint action frequencies between makers.
-        If provided and there are exactly two makers, a joint frequency heatmap is plotted.
+        Number of rounds per averaging window; defines the x-axis scale for time-based plots.
+    makers : list of Maker
+        List of maker agents whose statistics are being summarized.
+    stats_cci : OnlineVectorStats or None, default=None
+        Online statistics tracker for Calvano Collusion Index (CCI) values per maker 
+        over time. Generates a time-series subplot if provided.
+    stats_sorted_cci : OnlineVectorStats or None, default=None
+        Online statistics tracker for CCI values after sorting makers by their CCI.
+        Generates an additional subplot if provided.
+    stats_actions_freq : OnlineVectorStats or None, default=None
+        Online tracker for relative action frequency matrices per maker. 
+        Generates two rows of heatmaps (first and last window means) if provided.
+    stats_joint_actions_freq : OnlineVectorStats or None, default=None
+        Online tracker for joint action frequency matrices between makers.
+        Generates two full-width heatmaps (first and last window means) if provided
+        and ``len(makers) == 2``.
+    stats_belief : OnlineVectorStats or None, default=None
+        Online tracker for belief matrices per maker across simulation rounds.
+        Adds one row of heatmaps (mean ± std) if provided.
     annot : {'all', 'none', 'above_mean'}, default='above_mean'
-        Controls whether and how to annotate heatmap cells:
-        - `'all'` — annotate all cells.
-        - `'none'` — no annotations.
-        - `'above_mean'` — annotate only cells with values above the matrix mean.
+        Controls how heatmap cells are annotated:
+        - ``'all'`` — annotate all cells.
+        - ``'none'`` — no annotations.
+        - ``'above_mean'`` — annotate only cells above the matrix mean.
     title : str, default='Makers Statistics Summary Plot'
-        Title of the generated figure.
+        Overall title of the figure.
 
     Returns
     -------
     : matplotlib.figure.Figure
-        The matplotlib Figure containing all generated subplots, including CCI trends,
-        per-maker action frequencies, and optional joint frequency heatmaps.
+        The complete figure containing all generated subplots.
+
+    Notes
+    -----
+    - Each section's presence depends on which ``OnlineVectorStats`` objects are provided.
+    - Action and belief heatmaps use maker-specific price grids.
+    - If there are exactly two makers, joint action frequencies are visualized; 
+      otherwise, those plots are omitted.
+    - The function closes the figure before returning it (``plt.close()``) to avoid 
+      automatic display in notebooks.
     """
     n_makers = len(makers)
-    n_rows = (stats_cci is not None) + (stats_sorted_cci is not None) + (stats_actions_freq is not None) + ((stats_joint_actions_freq is not None) and (n_makers == 2))
+    n_rows = (stats_cci is not None) +\
+        (stats_sorted_cci is not None) +\
+        2 * (stats_actions_freq is not None) +\
+        2 * ((stats_joint_actions_freq is not None) and (n_makers == 2)) +\
+        (stats_belief is not None)
+
     row = 0
 
     fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows), constrained_layout=True)
@@ -267,10 +293,29 @@ def plot_all_stats(
     if stats_actions_freq is not None:
         for i, maker in enumerate(makers):
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, :]
+            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, 0, :]
             
             matrix_std = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std()[i, :]
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std()[i, 0, :]
+
+            subfig = fig.add_subfigure(gs[row, i])
+            ax = subfig.add_subplot(111)
+            plot_maker_actions_freq(
+                maker = maker,
+                matrix = matrix_mean,
+                matrix_stdev = matrix_std,
+                annot = annot,
+                title = 'Mean Rel. Actions Freq. - First Window',
+                ax = ax
+            )
+        row += 1
+
+        for i, maker in enumerate(makers):
+            matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
+            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, 1, :]
+            
+            matrix_std = np.full(2 * (len(maker.prices),), np.nan)
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std()[i, 1, :]
 
             subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
@@ -288,12 +333,42 @@ def plot_all_stats(
         ax = fig.add_subplot(gs[row, :])
         plot_makers_joint_actions_freq(
             makers = makers,
-            matrix = stats_joint_actions_freq.get_mean(),
-            matrix_stdev = stats_joint_actions_freq.get_std(),
+            matrix = stats_joint_actions_freq.get_mean()[0],
+            matrix_stdev = stats_joint_actions_freq.get_std()[0],
+            annot = annot,
+            title = 'Mean Rel. Joint Actions Freq. - First Window',
+            ax = ax
+        )
+        row += 1
+
+        ax = fig.add_subplot(gs[row, :])
+        plot_makers_joint_actions_freq(
+            makers = makers,
+            matrix = stats_joint_actions_freq.get_mean()[1],
+            matrix_stdev = stats_joint_actions_freq.get_std()[1],
             annot = annot,
             title = 'Mean Rel. Joint Actions Freq. - Last Window',
             ax = ax
         )
+        row += 1
+
+    if stats_belief is not None:
+        for i, maker in enumerate(makers):
+            matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
+            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_belief.get_mean()[i]
+            matrix_std = np.full(2 * (len(maker.prices),), np.nan)
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_belief.get_std()[i]
+
+            subfig = fig.add_subfigure(gs[row, i])
+            ax = subfig.add_subplot(111)
+            plot_maker_belief(
+                maker = maker,
+                matrix = matrix_mean,
+                matrix_stdev = matrix_std,
+                annot = annot,
+                title = 'Mean Final Belief',
+                ax = ax
+            )
         row += 1
 
     plt.close()
@@ -464,7 +539,7 @@ def plot_maker_actions_freq(
         ax = ax
     )
 
-    ax.set_title(title + ' - ' + maker.name.capitalize())
+    ax.set_title(f'{title} - {maker.name.capitalize()}')
     ax.set_xlabel('Ask Price')
     ax.set_ylabel('Bid Price')
     return ax
@@ -472,76 +547,105 @@ def plot_maker_actions_freq(
 
 def plot_maker_belief(
     maker: Maker,
-    belief_name: str,
+    belief_name: str|None = None,
+    matrix: np.ndarray|None = None,
+    matrix_stdev: np.ndarray|None = None,
     ronud_range: slice = slice(None),
     annot: Literal['all', 'none', 'above_mean'] = 'all',
     title: str = 'Belief',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot a heatmap of the maker's belief or related variable across bid and ask prices.
+    Plot a heatmap of the maker's belief or a related variable across bid and ask prices.
 
     This function visualizes a 2D matrix representing the maker's internal belief 
-    (or another related variable specified by `belief_name`) over combinations 
-    of bid and ask prices. The belief data is retrieved dynamically from the 
-    `Maker` instance. If `belief_name` is `'extra'`, the data is instead obtained 
-    from `maker.history.get_extras(round_range)`.
+    (or another related variable specified by ``belief_name``) over combinations 
+    of bid and ask prices. The data can be provided directly via ``matrix`` or 
+    retrieved from the ``Maker`` instance. If ``belief_name == 'extra'``, the data 
+    is obtained from ``maker.history.get_extras(ronud_range)``.
 
     Parameters
     ----------
     maker : Maker
-        The maker instance containing relevant price data and internal belief variables.
-    belief_name : str
+        The maker instance containing relevant price data and belief-related variables.
+    belief_name : str or None, default=None
         Name of the maker attribute representing the belief or related quantity 
-        (e.g., `'belief'`, `'q_values'`, `'v_values'`, `'policy'`, etc.). 
-        If `'extra'`, the data is retrieved via `maker.history.get_extras(round_range)`.
-    round_range : slice, default=slice(None)
-        The range of rounds to consider when retrieving belief data.
-        Used only when `belief_name == 'extra'`.
+        (e.g., ``'belief'``, ``'q_values'``, ``'v_values'``, ``'policy'``). 
+        If ``'extra'``, the data is retrieved using ``maker.history.get_extras(ronud_range)``.
+        Ignored if ``matrix`` is provided.
+    matrix : np.ndarray or None, default=None
+        Optional precomputed 2D array to plot. If provided, it is used directly 
+        instead of retrieving belief data from ``maker``.
+    matrix_stdev : np.ndarray or None, default=None
+        Optional 2D array of standard deviations corresponding to ``matrix`` values.
+        When provided, each heatmap cell annotation includes the mean ± standard deviation.
+    ronud_range : slice, default=slice(None)
+        Range of rounds to consider when retrieving belief data from 
+        ``maker.history.get_extras``. Only used if ``belief_name == 'extra'``.
     annot : {'all', 'none', 'above_mean'}, default='all'
-        Controls whether and how to annotate cells with their values:
-        - `'all'` — annotate all cells.
-        - `'none'` — no annotations.
-        - `'above_mean'` — annotate only cells with values above the matrix mean.
+        Controls how annotations are displayed:
+        - ``'all'`` — annotate all cells.
+        - ``'none'`` — no annotations.
+        - ``'above_mean'`` — annotate only cells above the matrix mean.
     title : str, default='Belief'
         Title of the plot.
     ax : matplotlib.axes.Axes or None, default=None
-        Axis on which to draw the heatmap. If None, a new axis is created.
+        Axis on which to draw the heatmap. If None, a new figure and axis are created.
 
     Returns
     -------
     : matplotlib.axes.Axes
         The axis containing the generated heatmap.
+
+    Notes
+    -----
+    - The x-axis represents ask prices, and the y-axis represents bid prices.
+    - If ``matrix_stdev`` is provided, annotations include both mean and standard deviation.
     """
     if ax is None:
         _, ax = plt.subplots()
     
-    unique_actions = maker.price_to_index(maker.action_space)
-    freqs = getattr(maker, belief_name) if belief_name != 'extra' else maker.history.get_extras(ronud_range)
+    if matrix is None:
+        unique_actions = maker.price_to_index(maker.action_space)
+        freqs = getattr(maker, belief_name) if belief_name != 'extra' else maker.history.get_extras(ronud_range)
 
-    matrix = np.full(2*(len(maker.prices),), np.nan)
-    matrix[unique_actions[:, 1], unique_actions[:, 0]] = freqs
+        matrix = np.full(2*(len(maker.prices),), np.nan)
+        matrix[unique_actions[:, 1], unique_actions[:, 0]] = freqs
+    else:
+        matrix = matrix.T
+        matrix_stdev = matrix_stdev.T if matrix_stdev is not None else None
 
+    fmt = ''
+    base_line = 12 if matrix_stdev is None else 10
     if annot == 'all':
-        annotations = True
-        fmt = f'.{DECIMAL_PLACES_VALUES}f'
+        if matrix_stdev is None:
+            annotations = True
+            fmt = f'.{DECIMAL_PLACES_VALUES}f'
+        else:
+            annotations = np.empty_like(matrix, dtype=object)
+            for i in range(matrix.shape[0]):
+                for j in range(matrix.shape[1]):
+                    annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}\n±{matrix_stdev[i, j]:.{DECIMAL_PLACES_VALUES}f}'
     elif annot == 'none':
         annotations = False
         fmt = f'.{DECIMAL_PLACES_VALUES}f'
     elif annot == 'above_mean':
+        mean_val = np.nanmean(matrix)
         annotations = np.empty_like(matrix, dtype=object)
-        fmt = ''
         for i in range(matrix.shape[0]):
             for j in range(matrix.shape[1]):
-                if matrix[i, j] > np.nanmean(matrix):
-                    annotations[i, j] = f'{matrix[i, j]:.2f}'
+                if matrix[i, j] > mean_val:
+                    if matrix_stdev is None:
+                        annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}'
+                    else:
+                        annotations[i, j] = f'{matrix[i, j]:.{DECIMAL_PLACES_VALUES}f}\n±{matrix_stdev[i, j]:.{DECIMAL_PLACES_VALUES}f}'
                 else:
-                    annotations[i, j] = ''  
+                    annotations[i, j] = ''
 
     sns.heatmap(
         matrix,
         annot = annotations,
-        annot_kws = {'size': max(5, 12 - 0.5 * np.log10(matrix.size))},
+        annot_kws = {'size': max(5, base_line - 0.5 * np.log10(matrix.size))},
         fmt = fmt,
         cmap = 'viridis',
         cbar = True,
@@ -550,7 +654,7 @@ def plot_maker_belief(
         ax = ax
     )
 
-    ax.set_title(f'{title} ({belief_name}) - {maker.name.capitalize()}')
+    ax.set_title(f'{title} ({belief_name if belief_name is not None else 'custom'}) - {maker.name.capitalize()}')
     ax.set_xlabel('Ask Price')
     ax.set_ylabel('Bid Price')
     return ax
