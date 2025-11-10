@@ -262,7 +262,7 @@ def multiple_runs(
         stats_rwd.update(np.array([env.cumulative_rewards[maker] for maker in env.makers]))
 
         # Save and print results
-        dir = saver.save_episode([env] + list(agents.values()), info=info)
+        dir = saver.save_episode(info=info)
         saver.print_and_save(f'{(i+1):03} {'*' if (cci[:, -1] >= 0.45).any() else ' '} -> CCI:{info['cci'][n_windows]}'.ljust(60) + f' ({dir})', silent=True)
 
     end_time = time.time()
