@@ -12,5 +12,6 @@ dependencies:
   - seaborn
   - pip
   - pip:
+    - cvxpy
     - pettingzoo
     - gymnasium

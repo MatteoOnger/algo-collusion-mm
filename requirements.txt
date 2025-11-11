@@ -12,5 +12,6 @@ ipywidgets
 seaborn
 
 # Packages originally under pip
+cvxpy
 pettingzoo
 gymnasium

@@ -24,6 +24,7 @@ dependencies = [
     'ipympl',
     'ipywidgets',
     'seaborn',
+    'cvxpy',
     'pettingzoo',
     'gymnasium',
 ]
