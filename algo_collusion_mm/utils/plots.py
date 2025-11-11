@@ -296,7 +296,7 @@ def plot_all_stats(
             matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, 0, :]
             
             matrix_std = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std()[i, 0, :]
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std(sample=False)[i, 0, :]
 
             subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
@@ -315,7 +315,7 @@ def plot_all_stats(
             matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_mean()[i, 1, :]
             
             matrix_std = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std()[i, 1, :]
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_actions_freq.get_std(sample=False)[i, 1, :]
 
             subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
@@ -334,7 +334,7 @@ def plot_all_stats(
         plot_makers_joint_actions_freq(
             makers = makers,
             matrix = stats_joint_actions_freq.get_mean()[0],
-            matrix_stdev = stats_joint_actions_freq.get_std()[0],
+            matrix_stdev = stats_joint_actions_freq.get_std(sample=False)[0],
             annot = annot,
             title = 'Mean Rel. Joint Actions Freq. - First Window',
             ax = ax
@@ -345,7 +345,7 @@ def plot_all_stats(
         plot_makers_joint_actions_freq(
             makers = makers,
             matrix = stats_joint_actions_freq.get_mean()[1],
-            matrix_stdev = stats_joint_actions_freq.get_std()[1],
+            matrix_stdev = stats_joint_actions_freq.get_std(sample=False)[1],
             annot = annot,
             title = 'Mean Rel. Joint Actions Freq. - Last Window',
             ax = ax
@@ -357,7 +357,7 @@ def plot_all_stats(
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
             matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_belief.get_mean()[i]
             matrix_std = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_belief.get_std()[i]
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_belief.get_std(sample=False)[i]
 
             subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
