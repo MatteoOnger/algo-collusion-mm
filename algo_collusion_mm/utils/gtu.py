@@ -1,5 +1,6 @@
 """ Game-theory utilities.
 """
+import cvxpy as cp
 import numpy as np
 
 from itertools import product
@@ -197,6 +198,121 @@ def compute_joint_actions_and_rewards(
     all_combinations = np.reshape(all_combinations, newshape + [2, n_agents])
     rewards = np.reshape(rewards, newshape + [n_agents,])
     return all_combinations, rewards
+
+
+def find_best_cce(
+    payoffs: np.ndarray,
+    objective: Literal['social_welfare', 'single_agent'],
+    target_player: int | None = None,
+    solver: str = cp.CLARABEL
+) -> Tuple[np.ndarray, float]:
+    """
+    Compute a coarse correlated equilibrium (CCE) that maximizes a chosen objective.
+
+    A CCE is a joint probability distribution over all players' actions such that 
+    no player can increase their expected payoff by unilaterally deviating to any 
+    fixed pure strategy. This function formulates and solves the corresponding 
+    optimization problem as a linear program using CVXPY.
+
+    The objective can be set to either:
+    - social welfare — maximize the sum of expected payoffs for all players.
+    - single agent — maximize the expected payoff of one specified player.
+
+    Parameters
+    ----------
+    payoffs : np.ndarray
+        An array of shape `(*action_spaces, n_players)` specifying the payoff for 
+        each player at every possible joint action. The last axis corresponds to players, 
+        while each preceding axis corresponds to a player's discrete action space.
+        Example: for a 2-player game where player 1 has 3 actions and player 2 has 4 actions,
+        the shape would be (3, 4, 2).
+    objective : {'social_welfare', 'single_agent'}
+        The optimization objective to maximize:
+        - `'social_welfare'`: sum of expected payoffs of all players.
+        - `'single_agent'`: expected payoff of a single player (requires `target_player`).
+    target_player : int or None, default=None
+        Index of the player whose payoff should be maximized when 
+        `objective='single_agent'`. Must be provided in that case.
+    solver : str, default=cp.CLARABEL
+        The solver to use for the underlying CVXPY optimization problem.  
+        You can view the list of solvers available in your environment by running:
+        `cvxpy.installed_solvers()`.
+
+    Returns
+    -------
+    p_opt : np.ndarray
+        The optimal joint probability distribution over all action profiles, 
+        with shape `(*action_spaces,)`. The probabilities sum to 1.
+    value_opt : float
+        The optimal value of the chosen objective under the computed CCE.
+
+    Raises
+    ------
+    ValueError
+        - If `objective='single_agent'` but `target_player` is not provided.
+        - If `objective` is not one of `'social_welfare'` or `'single_agent'`.
+        - If no optimal solution (CCE) can be found by the solver.
+
+    Notes
+    -----
+    - This function uses linear programming via CVXPY.
+    - The chosen solver can influence performance and numerical stability.
+      If you encounter solver issues, try switching to another available solver.
+    """
+    if objective == 'single_agent' and target_player is None:
+        raise ValueError('target_player must be provided when objective is "single_agent"')
+    if objective not in ['social_welfare', 'single_agent']:
+        raise ValueError(f'Invalid objective: {objective}. Must be "social_welfare" or "single_agent".')
+
+    payoffs = np.moveaxis(payoffs, -1, 0)  # -> (n_players, *action_spaces)
+    n_players = payoffs.shape[0]
+    shape = payoffs.shape[1:]
+    n_joint = np.prod(shape)
+
+    # Flatten payoffs for vectorized computation
+    payoffs_flat = payoffs.reshape(n_players, n_joint)  # -> (n_players, n_joint)
+
+    # All joint actions as flat indices
+    joint_actions = np.array(list(np.ndindex(shape)))  # -> (n_joint, n_players)
+    
+    # Decision variable: probability distribution over joint actions
+    p = cp.Variable(n_joint, nonneg=True)
+
+    # Constraint: probabilities sum to 1
+    constraints = [cp.sum(p) == 1]
+
+    # Vectorized CCE constraints
+    for i in range(n_players):
+        n_actions_i = shape[i]
+        for a_i_prime in range(n_actions_i):
+            deviated_actions = joint_actions.copy()
+            deviated_actions[:, i] = a_i_prime
+
+            # Convert multi-indices to flat indices
+            idx_original = np.ravel_multi_index(joint_actions.T, dims=shape)
+            idx_deviated = np.ravel_multi_index(deviated_actions.T, dims=shape)
+
+            lhs = payoffs_flat[i, idx_original] @ p
+            rhs = payoffs_flat[i, idx_deviated] @ p
+            constraints.append(lhs >= rhs)
+
+    # Objective function
+    if objective == 'social_welfare':
+        total_payoffs = payoffs_flat.sum(axis=0)
+        objective_expr = cp.Maximize(total_payoffs @ p)
+    else:
+        objective_expr = cp.Maximize(payoffs_flat[target_player] @ p)
+
+    # Solve the linear program
+    problem = cp.Problem(objective_expr, constraints)
+    problem.solve(solver=solver)
+
+    if problem.status not in ['optimal', 'optimal_inaccurate']:
+        raise ValueError('No optimal CCE could be found by the solver.')
+
+    # Reshape probabilities to match action dimensions
+    p_opt = np.array(p.value).reshape(shape)
+    return p_opt, problem.value
 
 
 def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = False, fast: bool = True) -> bool:

@@ -222,15 +222,15 @@ def plot_all_stats(
     stats_joint_actions_freq : OnlineVectorStats or None, default=None
         Online tracker for joint action frequency matrices between makers.
         Generates two full-width heatmaps (first and last window means) if provided
-        and ``len(makers) == 2``.
+        and `len(makers) == 2`.
     stats_belief : OnlineVectorStats or None, default=None
         Online tracker for belief matrices per maker across simulation rounds.
         Adds one row of heatmaps (mean ± std) if provided.
     annot : {'all', 'none', 'above_mean'}, default='above_mean'
         Controls how heatmap cells are annotated:
-        - ``'all'`` — annotate all cells.
-        - ``'none'`` — no annotations.
-        - ``'above_mean'`` — annotate only cells above the matrix mean.
+        - `'all'` — annotate all cells.
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells above the matrix mean.
     title : str, default='Makers Statistics Summary Plot'
         Overall title of the figure.
 
@@ -241,11 +241,11 @@ def plot_all_stats(
 
     Notes
     -----
-    - Each section's presence depends on which ``OnlineVectorStats`` objects are provided.
+    - Each section's presence depends on which `OnlineVectorStats` objects are provided.
     - Action and belief heatmaps use maker-specific price grids.
     - If there are exactly two makers, joint action frequencies are visualized; 
       otherwise, those plots are omitted.
-    - The function closes the figure before returning it (``plt.close()``) to avoid 
+    - The function closes the figure before returning it (`plt.close()`) to avoid 
       automatic display in notebooks.
     """
     n_makers = len(makers)
@@ -559,10 +559,10 @@ def plot_maker_belief(
     Plot a heatmap of the maker's belief or a related variable across bid and ask prices.
 
     This function visualizes a 2D matrix representing the maker's internal belief 
-    (or another related variable specified by ``belief_name``) over combinations 
-    of bid and ask prices. The data can be provided directly via ``matrix`` or 
-    retrieved from the ``Maker`` instance. If ``belief_name == 'extra'``, the data 
-    is obtained from ``maker.history.get_extras(ronud_range)``.
+    (or another related variable specified by `belief_name`) over combinations 
+    of bid and ask prices. The data can be provided directly via `matrix` or 
+    retrieved from the `Maker` instance. If `belief_name == 'extra'`, the data 
+    is obtained from `maker.history.get_extras(ronud_range)`.
 
     Parameters
     ----------
@@ -570,23 +570,23 @@ def plot_maker_belief(
         The maker instance containing relevant price data and belief-related variables.
     belief_name : str or None, default=None
         Name of the maker attribute representing the belief or related quantity 
-        (e.g., ``'belief'``, ``'q_values'``, ``'v_values'``, ``'policy'``). 
-        If ``'extra'``, the data is retrieved using ``maker.history.get_extras(ronud_range)``.
-        Ignored if ``matrix`` is provided.
+        (e.g., `'belief'`, `'q_values'`, `'v_values'`, `'policy'`). 
+        If `'extra'`, the data is retrieved using `maker.history.get_extras(ronud_range)`.
+        Ignored if `matrix` is provided.
     matrix : np.ndarray or None, default=None
         Optional precomputed 2D array to plot. If provided, it is used directly 
-        instead of retrieving belief data from ``maker``.
+        instead of retrieving belief data from `maker`.
     matrix_stdev : np.ndarray or None, default=None
-        Optional 2D array of standard deviations corresponding to ``matrix`` values.
+        Optional 2D array of standard deviations corresponding to `matrix` values.
         When provided, each heatmap cell annotation includes the mean ± standard deviation.
     ronud_range : slice, default=slice(None)
         Range of rounds to consider when retrieving belief data from 
-        ``maker.history.get_extras``. Only used if ``belief_name == 'extra'``.
+        `maker.history.get_extras`. Only used if `belief_name == 'extra'`.
     annot : {'all', 'none', 'above_mean'}, default='all'
         Controls how annotations are displayed:
-        - ``'all'`` — annotate all cells.
-        - ``'none'`` — no annotations.
-        - ``'above_mean'`` — annotate only cells above the matrix mean.
+        - `'all'` — annotate all cells.
+        - `'none'` — no annotations.
+        - `'above_mean'` — annotate only cells above the matrix mean.
     title : str, default='Belief'
         Title of the plot.
     ax : matplotlib.axes.Axes or None, default=None
@@ -600,7 +600,7 @@ def plot_maker_belief(
     Notes
     -----
     - The x-axis represents ask prices, and the y-axis represents bid prices.
-    - If ``matrix_stdev`` is provided, annotations include both mean and standard deviation.
+    - If `matrix_stdev` is provided, annotations include both mean and standard deviation.
     """
     if ax is None:
         _, ax = plt.subplots()
