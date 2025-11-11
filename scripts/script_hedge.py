@@ -31,7 +31,6 @@ def multiple_runs(
     agents_variable_params: Dict[str, Any],
     n_makers_i: int,
     n_traders: int,
-    prices: np.ndarray,
     action_space: np.ndarray,
     nash_reward: float,
     coll_reward: float,
@@ -69,8 +68,6 @@ def multiple_runs(
         Number of informed market makers.
     n_traders : int
         Number of traders in the environment.
-    prices : np.ndarray
-        Array of possible asset prices used within the environment.
     action_space : np.ndarray
         Discrete set of possible (bid, ask) price pairs available to market makers.
     nash_reward : float
@@ -395,7 +392,7 @@ if __name__ == '__main__':
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
 
-    x = 0.003 #MakerHedge.compute_epsilon(len(action_space), n)
+    x = MakerHedge.compute_epsilon(len(action_space), n)
     epsilons = np.round(np.concat([
         x - np.arange(1,  8)[::-1] * 0.0005,
         np.array([x]),
@@ -414,7 +411,6 @@ if __name__ == '__main__':
         'env': {
             'n_makers_i': n_makers_i,
             'n_traders': 1,
-            'prices': prices,
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
@@ -434,7 +430,7 @@ if __name__ == '__main__':
 
     variable_params = [{
         'env': {
-            'saver_base_path': os.path.join(BASE_PATH, f'experiment_{i:03}'),
+            'saver_base_path': os.path.join(BASE_PATH, f'experiment_{(i+1):03}'),
         },
         'agent': {
             'maker': {

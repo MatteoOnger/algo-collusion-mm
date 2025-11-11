@@ -31,7 +31,6 @@ def multiple_runs(
     agents_variable_params: Dict[str, Any],
     n_makers_u: int,
     n_traders: int,
-    prices: np.ndarray,
     action_space: np.ndarray,
     nash_reward: float,
     coll_reward: float,
@@ -69,8 +68,6 @@ def multiple_runs(
         Number of uninformed market makers.
     n_traders : int
         Number of traders in the environment.
-    prices : np.ndarray
-        Array of possible asset prices used within the environment.
     action_space : np.ndarray
         Discrete set of possible (bid, ask) price pairs available to market makers.
     nash_reward : float
@@ -413,7 +410,6 @@ if __name__ == '__main__':
         'env': {
             'n_makers_u': n_makers_u,
             'n_traders': 1,
-            'prices': prices,
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
@@ -433,7 +429,7 @@ if __name__ == '__main__':
 
     variable_params = [{
         'env': {
-            'saver_base_path': os.path.join(BASE_PATH, f'experiment_{i:03}'),
+            'saver_base_path': os.path.join(BASE_PATH, f'experiment_{(i+1):03}'),
         },
         'agent': {
             'maker': {

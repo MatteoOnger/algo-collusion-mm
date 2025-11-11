@@ -304,7 +304,7 @@ def plot_all_stats(
                 maker = maker,
                 matrix = matrix_mean,
                 matrix_stdev = matrix_std,
-                annot = annot,
+                annot = 'all',
                 title = 'Mean Rel. Actions Freq. - First Window',
                 ax = ax
             )
@@ -323,7 +323,7 @@ def plot_all_stats(
                 maker = maker,
                 matrix = matrix_mean,
                 matrix_stdev = matrix_std,
-                annot = annot,
+                annot = 'all',
                 title = 'Mean Rel. Actions Freq. - Last Window',
                 ax = ax
             )
@@ -365,7 +365,7 @@ def plot_all_stats(
                 maker = maker,
                 matrix = matrix_mean,
                 matrix_stdev = matrix_std,
-                annot = annot,
+                annot = 'all',
                 title = 'Mean Final Belief',
                 ax = ax
             )
