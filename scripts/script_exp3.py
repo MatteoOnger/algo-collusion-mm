@@ -292,6 +292,7 @@ def multiple_runs(
         f' - [SORTED CCI] Minimum: {np.round(stats_sorted_cci.get_min()[:, -1], 4)}\n'
         f' - [SORTED CCI] Maximum: {np.round(stats_sorted_cci.get_max()[:, -1], 4)}\n'
         f' - [SORTED CCI] Standard deviation: {np.round(stats_sorted_cci.get_std(sample=False)[:, -1], 4)}\n'
+        f' - [RWD] Expected: {np.round(stats_cci.get_mean()[:, -1] * (coll_reward/n_makers_u - nash_reward/n_makers_u) + nash_reward/n_makers_u, 4)}\n'
         f'- Global:\n'
         f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
         f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
