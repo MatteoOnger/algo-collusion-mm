@@ -402,7 +402,7 @@ if __name__ == '__main__':
         x + 0.0125 + np.arange(1, 21) * 0.0050,
         x + 0.1125 + np.arange(1, 41) * 0.0100,
         x + 0.5125 + np.arange(1, 10) * 0.0500,
-        np.array([1., 5., 10., 50., 100., 500., 100., 1000.]),
+        np.array([1., 5., 10., 50., 100., 500., 1000.]),
     ]), 4)
 
     assert len(epsilons) == n_parallel_runs
