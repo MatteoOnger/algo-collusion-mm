@@ -4,6 +4,7 @@ import ipywidgets as widgets
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 import seaborn as sns
 
 from IPython.display import display
@@ -21,6 +22,10 @@ Number of decimal places to display for axis labels.
 DECIMAL_PLACES_VALUES = 3
 """
 Number of decimal places to display for numeric values.
+"""
+JITTER_STRENGTH = 0.
+"""
+Controls the amount of jitter applied.
 """
 
 
@@ -44,7 +49,7 @@ def plot_all(
     - **Absolute action frequency heatmaps** - visualizations of how often each action was chosen by each maker.
     - **Final agents' beliefs** - representation of each maker's belief at the end of the simulation.
     - **Calvano Collusion Index (CCI) over time** - tracks the level of collusion or cooperation between agents.
-    - **Joint action heatmaps** - for exactly two makers, shows joint action distributions in the first and last windows.
+    - **Joint action heatmaps** - shows joint action distributions in the first and last windows.
 
     Parameters
     ----------
@@ -72,11 +77,10 @@ def plot_all(
     -------
     : matplotlib.figure.Figure
         The figure containing all generated subplots for makers' actions, rewards, frequencies,
-        beliefs, and CCI, with optional joint action heatmaps.
+        beliefs, CCI and joint action heatmaps.
 
     Notes
     -----
-    - If exactly 2 makers are provided, combined action heatmaps are shown for the first and last windows.
     - The figure is closed (`plt.close()`) before being returned to prevent duplicate display in notebooks.
     """
     n_makers = len(makers)
@@ -85,9 +89,7 @@ def plot_all(
         makers_belief_name = n_makers * [makers_belief_name]
 
     # Determine how many plot rows we need
-    n_rows = 5  # actions, rewards, freq heatmap, CCI, belief
-    if n_makers == 2:
-        n_rows += 1  # Add combined action plots
+    n_rows = 6  # actions, rewards, freq heatmap, CCI, belief, joint actions
 
     fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows))
     fig.suptitle(title, fontsize=20)
@@ -112,11 +114,12 @@ def plot_all(
             ax = ax_rewards
         )
 
-        # Row 2: frequency heatmap
+        # Row 2: action frequency
         ax_freq = fig.add_subplot(gs[2, i])
         plot_maker_actions_freq(
             maker = maker,
             annot = annot,
+            title = 'Global Actions Frequency',
             ax = ax_freq
         )
         ax_freq.set_aspect('equal', adjustable='box')
@@ -142,30 +145,49 @@ def plot_all(
         ax = ax_cci
     )
 
-    # Optional: joint actions frequency (only if 2 agents)
+    # Joint actions frequency
+    ax_comb_1 = fig.add_subplot(gs[5, :n_makers//2])
+    ax_comb_2 = fig.add_subplot(gs[5, (n_makers+1)//2:])
+
     if n_makers == 2:
         # First window
-        ax_comb_1 = fig.add_subplot(gs[5, 0])
-        plot_makers_joint_actions_freq(
+        plot_makers_joint_actions_freq_hm(
             makers = makers,
             round_range = slice(window_size),
             annot = annot,
-            title = 'Joint Actions Frequency - First Window',
+            title = 'Relative Joint Actions Frequency - First Window',
             ax = ax_comb_1
         )
         ax_comb_1.set_aspect('equal', adjustable='box')
 
         # Last window
-        ax_comb_2 = fig.add_subplot(gs[5, 1])
-        plot_makers_joint_actions_freq(
+        plot_makers_joint_actions_freq_hm(
             makers = makers,
             round_range = slice(-window_size, None),
             annot = annot,
-            title = 'Joint Actions Frequency - Last Window',
+            title = 'Relative Joint Actions Frequency - Last Window',
             ax = ax_comb_2
         )
         ax_comb_2.set_aspect('equal', adjustable='box')
+    else:
+        # First window
+        plot_makers_joint_actions_freq_pc(
+            makers = makers,
+            round_range = slice(window_size),
+            threshold = 'above_mean_1_std',
+            title = 'Relative Joint Actions Frequency - First Window',
+            ax = ax_comb_1
+        )
 
+        # Last window
+        plot_makers_joint_actions_freq_pc(
+            makers = makers,
+            round_range = slice(-window_size, None),
+            threshold = 'above_mean_1_std',
+            title = 'Relative Joint Actions Frequency - Last Window',
+            ax = ax_comb_2
+        )
+    
     fig.tight_layout()
     fig.subplots_adjust(top=0.95)
     plt.close()
@@ -199,8 +221,8 @@ def plot_all_stats(
     2. **Mean Sorted CCI** — displays the same statistics after sorting makers by CCI.
     3. **Mean Relative Action Frequencies** — one heatmap per maker, showing average 
        action frequency matrices for the first and last simulation windows.
-    4. **Mean Joint Action Frequencies** — shown only when there are exactly two makers, 
-       visualizing their joint action distributions for the first and last windows.
+    4. **Mean Joint Action Frequencies** — shown the joint action distributions
+       for the first and last windows.
     5. **Mean Final Belief Matrices** — optional section showing each maker's belief matrix 
        mean and standard deviation across windows.
 
@@ -221,8 +243,7 @@ def plot_all_stats(
         Generates two rows of heatmaps (first and last window means) if provided.
     stats_joint_actions_freq : OnlineVectorStats or None, default=None
         Online tracker for joint action frequency matrices between makers.
-        Generates two full-width heatmaps (first and last window means) if provided
-        and `len(makers) == 2`.
+        Generates two full-width plots (first and last window means) if provided.
     stats_belief : OnlineVectorStats or None, default=None
         Online tracker for belief matrices per maker across simulation rounds.
         Adds one row of heatmaps (mean ± std) if provided.
@@ -243,8 +264,6 @@ def plot_all_stats(
     -----
     - Each section's presence depends on which `OnlineVectorStats` objects are provided.
     - Action and belief heatmaps use maker-specific price grids.
-    - If there are exactly two makers, joint action frequencies are visualized; 
-      otherwise, those plots are omitted.
     - The function closes the figure before returning it (`plt.close()`) to avoid 
       automatic display in notebooks.
     """
@@ -252,7 +271,7 @@ def plot_all_stats(
     n_rows = (stats_cci is not None) +\
         (stats_sorted_cci is not None) +\
         2 * (stats_actions_freq is not None) +\
-        2 * ((stats_joint_actions_freq is not None) and (n_makers == 2)) +\
+        2 * (stats_joint_actions_freq is not None) +\
         (stats_belief is not None)
 
     row = 0
@@ -262,6 +281,7 @@ def plot_all_stats(
 
     gs = gridspec.GridSpec(n_rows, n_makers, figure=fig)
 
+    # Row 1: mean cci
     if stats_cci is not None:
         plot_makers_cci(
             xlabel = 'Round',
@@ -276,6 +296,7 @@ def plot_all_stats(
         )
         row += 1
 
+    # Row 2: mean sorted cci
     if stats_sorted_cci is not None:
         plot_makers_cci(
             xlabel = 'Round',
@@ -290,6 +311,7 @@ def plot_all_stats(
         )
         row += 1
 
+    # Row 3 and 4: mean relative actions frequency
     if stats_actions_freq is not None:
         for i, maker in enumerate(makers):
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
@@ -329,29 +351,48 @@ def plot_all_stats(
             )
         row += 1
 
-    if (stats_joint_actions_freq is not None) and (n_makers == 2):
-        ax = fig.add_subplot(gs[row, :])
-        plot_makers_joint_actions_freq(
-            makers = makers,
-            matrix = stats_joint_actions_freq.get_mean()[0],
-            matrix_stdev = stats_joint_actions_freq.get_std(sample=False)[0],
-            annot = annot,
-            title = 'Mean Rel. Joint Actions Freq. - First Window',
-            ax = ax
-        )
-        row += 1
+    # Row 5 and 4: mean relative joint actions frequency
+    if (stats_joint_actions_freq is not None):
+        ax_comb_1 = fig.add_subplot(gs[row, :])
+        ax_comb_2 = fig.add_subplot(gs[row+1, :])
 
-        ax = fig.add_subplot(gs[row, :])
-        plot_makers_joint_actions_freq(
-            makers = makers,
-            matrix = stats_joint_actions_freq.get_mean()[1],
-            matrix_stdev = stats_joint_actions_freq.get_std(sample=False)[1],
-            annot = annot,
-            title = 'Mean Rel. Joint Actions Freq. - Last Window',
-            ax = ax
-        )
-        row += 1
+        if n_makers == 2:
+            plot_makers_joint_actions_freq_hm(
+                makers = makers,
+                matrix = stats_joint_actions_freq.get_mean()[0],
+                matrix_stdev = stats_joint_actions_freq.get_std(sample=False)[0],
+                annot = annot,
+                title = 'Mean Rel. Joint Actions Freq. - First Window',
+                ax = ax_comb_1
+            )
 
+            plot_makers_joint_actions_freq_hm(
+                makers = makers,
+                matrix = stats_joint_actions_freq.get_mean()[1],
+                matrix_stdev = stats_joint_actions_freq.get_std(sample=False)[1],
+                annot = annot,
+                title = 'Mean Rel. Joint Actions Freq. - Last Window',
+                ax = ax_comb_2
+            )
+        else:
+            plot_makers_joint_actions_freq_pc(
+                makers = makers,
+                matrix = stats_joint_actions_freq.get_mean()[0],
+                threshold = 'above_mean_2_std',
+                title = 'Mean Rel. Joint Actions Freq. - First Window',
+                ax = ax_comb_1
+            )
+
+            plot_makers_joint_actions_freq_pc(
+                makers = makers,
+                matrix = stats_joint_actions_freq.get_mean()[1],
+                threshold = 'above_mean_1_std',
+                title = 'Mean Rel. Joint Actions Freq. - Last Window',
+                ax = ax_comb_2
+            )
+        row += 2
+
+    # Row 7: mean final belief
     if stats_belief is not None:
         for i, maker in enumerate(makers):
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
@@ -981,7 +1022,7 @@ def plot_makers_cci(
     return ax
 
 
-def plot_makers_joint_actions_freq(
+def plot_makers_joint_actions_freq_hm(
     makers: Tuple[Maker, Maker],
     matrix: np.ndarray|None = None,
     matrix_stdev: np.ndarray|None = None,
@@ -1021,6 +1062,7 @@ def plot_makers_joint_actions_freq(
         Ignored if `matrix` is provided.
     normalize : bool, default=True
         If True, normalize frequencies so that the total sum equals 1.
+        Ignored if `matrix` is provided.
     annot : {'all', 'none', 'above_mean'}, default='all'
         Controls cell annotations:
         - `'all'` — annotate every cell with its value (and ± if `matrix_stdev` is given).
@@ -1115,4 +1157,144 @@ def plot_makers_joint_actions_freq(
     ax.set_xlabel(makers[0].name.capitalize())
     ax.set_ylabel(makers[1].name.capitalize())
     ax.set_title(title)
+    return ax
+
+
+def plot_makers_joint_actions_freq_pc(
+    makers: List[Maker],
+    matrix: np.ndarray|None = None,
+    round_range: slice = slice(None),
+    threshold: float|Literal['all', 'above_mean', 'above_mean_X_std'] = 'above_mean',
+    title: str = 'Relative Joint Actions Frequency',
+    ax: plt.Axes|None = None
+)-> plt.Axes:
+    """
+    Plot a parallel coordinates-style visualization of joint action frequencies for multiple makers.
+
+    This function visualizes how often combinations of actions across multiple makers occur
+    together. Each maker is represented along the x-axis, and action indices along the y-axis.
+    Lines connecting actions illustrate the frequency of each joint action, with line width
+    and color intensity representing normalized frequency values. Optionally, a threshold
+    can filter which joint actions are displayed.
+
+    If a precomputed joint frequency matrix is not provided via `matrix`, it is automatically
+    constructed from the makers' recorded action histories over the specified `round_range`.
+
+    Parameters
+    ----------
+    makers : list of Maker
+        A list of `Maker` instances whose joint action frequencies will be visualized.
+    matrix : np.ndarray or None, default=None
+        Precomputed joint frequency matrix. If None, the matrix is computed from the
+        makers' action histories over the given `round_range`.
+    round_range : slice, default=slice(None)
+        Range of rounds to include when computing joint action frequencies.
+        Ignored if `matrix` is provided.
+    threshold : float or {'all', 'above_mean', 'above_mean_X_std'}, default='above_mean'
+        Minimum frequency value for joint actions to be displayed:
+        - `'all'` — display all joint actions.
+        - `'above_mean'` — display only joint actions with frequency above the mean.
+        - `'above_mean_X_std'` — display joint actions above mean + X standard deviations
+          (replace X with a numeric value in the string, e.g., `'above_mean_2_std'`).
+        - float — display joint actions with frequency ≥ threshold.
+    title : str, default='Relative Joint Actions Frequency'
+        Title of the plot.
+    ax : matplotlib.axes.Axes or None, default=None
+        Axis on which to draw the plot. If None, a new figure and axis are created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis object containing the rendered parallel coordinates plot.
+
+    Raises
+    ------
+    ValueError
+        If `threshold` is not a recognized string or a float.
+
+    Notes
+    -----
+    - The x-axis corresponds to different makers.
+    - The y-axis corresponds to action indices.
+    - Line width and color intensity represent the normalized frequency of each joint action.
+    - When makers have different action spaces, action labels are annotated at each point.
+    - If a precomputed matrix is provided, it is used directly for plotting; otherwise,
+      it is computed from the makers' action histories.
+    - Random jitter is applied to the vertical position of points to improve visibility
+      when multiple joint actions share the same value.
+    - Ensure that `np.concatenate` is used instead of `np.concat` when combining action arrays.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+    
+    if matrix is None:
+        joint_actions = np.concat([
+            maker.history.get_actions(round_range, return_index=True)[:, None] for maker in makers
+        ], axis=1)
+        unique_joint_actions, freqs = np.unique(joint_actions, return_counts=True, axis=0)
+
+        matrix = np.full(tuple(maker.n_arms for maker in makers), .0)
+
+        matrix[tuple(unique_joint_actions.T)] = freqs / sum(freqs)
+    norm_matrix = matrix / matrix.max()
+
+    action_spaces = [maker.action_space for maker in makers]
+    shapes = [action_space.shape for action_space in action_spaces]
+
+    action_space = action_spaces[0]
+    all_equal = True
+
+    if len(set(shapes)) > 1:
+        all_equal = False
+    else:
+        all_equal = all(np.array_equal(action_space, arr) for arr in action_spaces[1:])
+
+    if threshold == 'all':
+        threshold = float('-inf')
+    elif threshold == 'above_mean':
+        threshold = matrix.mean()
+    elif (match := re.match(r'^above_mean_(-?\d+(?:\.\d+)?)_std$', threshold)):
+        threshold = matrix.mean() + float(match.group(1)) * matrix.std()
+    elif not isinstance(threshold, float):
+        ValueError(f'Unrecognized threshold value: {threshold}')
+
+    x = np.arange(len(makers))
+    sorted_indices = np.array(np.unravel_index(np.argsort(matrix, axis=None)[::-1], matrix.shape)).T
+
+    for idx in sorted_indices:
+        if matrix[*idx] >= threshold:
+            linewidth = 1 + 5 * norm_matrix[*idx]**2
+            y_jittered = idx + np.random.uniform(-JITTER_STRENGTH, JITTER_STRENGTH, size=idx.shape)
+            ax.plot(x, y_jittered, color=plt.cm.viridis(norm_matrix[*idx]), linewidth=linewidth)
+
+    sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=matrix.min(), vmax=matrix.max()))
+    _ = plt.colorbar(sm, ax=ax)
+
+    if not all_equal:
+        index = [slice(None)] * len(makers)
+        for i, maker in enumerate(makers):
+            for j, action in enumerate(maker.action_space):
+                index[i] = j
+                if (matrix[tuple(index)] >= threshold).any():
+                    ax.text(
+                        i,
+                        j,
+                        action,
+                        ha = 'center',
+                        va = 'center',
+                        fontsize = 8,
+                        color = 'black',
+                        alpha = 0.8,
+                        bbox = dict(facecolor='white', edgecolor='none', alpha=0.8, boxstyle='round,pad=0.2')
+                    )
+
+    ax.set_title(title)
+    ax.set_xlabel('Maker')
+    ax.set_ylabel('Action')
+    ax.set_xticks(x)
+    ax.set_yticks(np.arange(len(action_space)) if all_equal else [])
+    ax.set_xticklabels([maker.name.capitalize() for maker in makers])
+    ax.set_yticklabels(action_space if all_equal else [])
+    ax.xaxis.grid(True, color='gray')
+    ax.yaxis.grid(True, color='lightgray', linestyle='--')
     return ax
