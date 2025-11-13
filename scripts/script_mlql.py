@@ -380,20 +380,19 @@ def worker(
 if __name__ == '__main__':
     saver = ExperimentStorage(BASE_PATH)
 
-    max_workers = 2
-    n_parallel_runs = 4
+    max_workers = 6
+    n_parallel_runs = 100
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     saver.print_and_save(f'Started at {current_time}')
 
     n_makers_u = 2
-    r, n, k = 10, 50_000, 100
+    r, n, k = 100, 25_000, 100
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
 
-    # epsilons = np.round(np.arange(0, 101) / 100, 4)
-    epsilons = np.array([0.001, 0.005, 0.01, 0.05])
+    epsilons = np.round(np.arange(0, 101) / 100, 4)
 
     assert len(epsilons) == n_parallel_runs
 
@@ -488,7 +487,7 @@ if __name__ == '__main__':
         min = lw_min_cci,
         max = lw_max_cci,
         makers_name = [f'maker_u_{i}' for i in range(n_makers_u)],
-        title = 'EXP3 - Mean CCI wrt. Epsilons - Last Window',
+        title = 'MLQL - Mean CCI wrt. Epsilons - Last Window',
         ax = axis
     )
     axis.axvline(7, ls='--', color='black', alpha=0.7)
