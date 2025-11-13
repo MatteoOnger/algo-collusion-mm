@@ -182,7 +182,6 @@ def plot_all(
             threshold = 'above_mean_1_std',
             title = 'Relative Joint Actions Frequency - First Window',
             pad = 0.09,
-            location = 'right',
             ax = ax_comb_1
         )
 
@@ -192,8 +191,8 @@ def plot_all(
             round_range = slice(-window_size, None),
             threshold = 'above_mean_1_std',
             title = 'Relative Joint Actions Frequency - Last Window',
-            pad = 0.09,
             location = 'left',
+            pad = 0.09,
             ax = ax_comb_2
         )
     
@@ -387,7 +386,7 @@ def plot_all_stats(
             plot_makers_joint_actions_freq_pc(
                 makers = makers,
                 matrix = stats_joint_actions_freq.get_mean()[0],
-                threshold = 'above_mean_2_std',
+                threshold = 'above_mean_1_std',
                 title = 'Mean Rel. Joint Actions Freq. - First Window',
                 ax = ax_comb_1
             )
