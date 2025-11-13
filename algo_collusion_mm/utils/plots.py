@@ -13,7 +13,7 @@ from typing import List, Literal, Tuple
 from ..agents.makers.maker import Maker
 from ..utils.stats import OnlineVectorStats
 
-
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 DECIMAL_PLACES_AXES = 2
 """
@@ -91,7 +91,7 @@ def plot_all(
     # Determine how many plot rows we need
     n_rows = 6  # actions, rewards, freq heatmap, CCI, belief, joint actions
 
-    fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows))
+    fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows)) 
     fig.suptitle(title, fontsize=20)
 
     gs = gridspec.GridSpec(n_rows, n_makers, figure=fig)
@@ -146,8 +146,13 @@ def plot_all(
     )
 
     # Joint actions frequency
-    ax_comb_1 = fig.add_subplot(gs[5, :n_makers//2])
-    ax_comb_2 = fig.add_subplot(gs[5, (n_makers+1)//2:])
+    sub_gs = gridspec.GridSpecFromSubplotSpec(
+        nrows = 1, 
+        ncols = 2,
+        subplot_spec = gs[5, :]
+    )
+    ax_comb_1 = fig.add_subplot(sub_gs[0, 0])
+    ax_comb_2 = fig.add_subplot(sub_gs[0, 1])
 
     if n_makers == 2:
         # First window
@@ -176,6 +181,8 @@ def plot_all(
             round_range = slice(window_size),
             threshold = 'above_mean_1_std',
             title = 'Relative Joint Actions Frequency - First Window',
+            pad = 0.09,
+            location = 'right',
             ax = ax_comb_1
         )
 
@@ -185,6 +192,8 @@ def plot_all(
             round_range = slice(-window_size, None),
             threshold = 'above_mean_1_std',
             title = 'Relative Joint Actions Frequency - Last Window',
+            pad = 0.09,
+            location = 'left',
             ax = ax_comb_2
         )
     
@@ -1166,6 +1175,8 @@ def plot_makers_joint_actions_freq_pc(
     round_range: slice = slice(None),
     threshold: float|Literal['all', 'above_mean', 'above_mean_X_std'] = 'above_mean',
     title: str = 'Relative Joint Actions Frequency',
+    location: Literal['left', 'right', 'top', 'bottom'] = 'right',
+    pad: float = 0.01,
     ax: plt.Axes|None = None
 )-> plt.Axes:
     """
@@ -1199,6 +1210,10 @@ def plot_makers_joint_actions_freq_pc(
         - float — display joint actions with frequency ≥ threshold.
     title : str, default='Relative Joint Actions Frequency'
         Title of the plot.
+    location : {'left', 'right', 'top', 'bottom'}, default='right'
+        The location, relative to the parent Axes, where the colorbar Axes is created.
+    pad : float, default=0.0
+        Padding used to centre the color bar.
     ax : matplotlib.axes.Axes or None, default=None
         Axis on which to draw the plot. If None, a new figure and axis are created.
 
@@ -1225,7 +1240,7 @@ def plot_makers_joint_actions_freq_pc(
     - Ensure that `np.concatenate` is used instead of `np.concat` when combining action arrays.
     """
     if ax is None:
-        _, ax = plt.subplots()
+        _, ax = plt.subplots(constrained_layout=True)
     
     if matrix is None:
         joint_actions = np.concat([
@@ -1268,7 +1283,7 @@ def plot_makers_joint_actions_freq_pc(
             ax.plot(x, y_jittered, color=plt.cm.viridis(norm_matrix[*idx]), linewidth=linewidth)
 
     sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=matrix.min(), vmax=matrix.max()))
-    _ = plt.colorbar(sm, ax=ax)
+    cbar = plt.colorbar(sm, ax=ax, pad=pad, location=location)
 
     if not all_equal:
         index = [slice(None)] * len(makers)
@@ -1297,4 +1312,9 @@ def plot_makers_joint_actions_freq_pc(
     ax.set_yticklabels(action_space if all_equal else [])
     ax.xaxis.grid(True, color='gray')
     ax.yaxis.grid(True, color='lightgray', linestyle='--')
+
+    ax2 = ax.twinx()
+    ax2.set_ylabel(ax.get_ylabel())
+    ax2.set_yticks(ax.get_yticks())
+    ax2.set_yticklabels(ax.get_yticklabels())
     return ax
