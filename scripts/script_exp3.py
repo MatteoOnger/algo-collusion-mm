@@ -381,7 +381,7 @@ if __name__ == '__main__':
     saver = ExperimentStorage(BASE_PATH)
 
     max_workers = 6
-    n_parallel_runs = 100
+    n_parallel_runs = 99
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
