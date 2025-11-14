@@ -13,7 +13,7 @@ from typing import List, Literal, Tuple
 from ..agents.makers.maker import Maker
 from ..utils.stats import OnlineVectorStats
 
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 
 DECIMAL_PLACES_AXES = 2
 """

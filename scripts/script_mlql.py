@@ -490,7 +490,6 @@ if __name__ == '__main__':
         title = 'MLQL - Mean CCI wrt. Epsilons - Last Window',
         ax = axis
     )
-    axis.axvline(7, ls='--', color='black', alpha=0.7)
     plt.tight_layout()
     saver.save_figures({'PLOT': fig})
 

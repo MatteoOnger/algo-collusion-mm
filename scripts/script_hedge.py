@@ -501,7 +501,7 @@ if __name__ == '__main__':
         title = 'Hedge - Mean CCI wrt. Epsilons - Last Window',
         ax = axis
     )
-    axis.axvline(47, ls='--', color='black', alpha=0.7)
+    axis.axvline(7, ls='--', color='black', alpha=0.7)
     plt.tight_layout()
     saver.save_figures({'PLOT': fig})
 
