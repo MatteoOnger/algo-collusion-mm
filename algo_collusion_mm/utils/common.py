@@ -115,7 +115,7 @@ def get_calvano_collusion_index(rewards: np.ndarray, nash_reward: float, coll_re
     ----------
     - Calvano, E., Calzolari, G., Denicolò, V., & Pastorello, S. (2020).
     Artificial intelligence, algorithmic pricing, and collusion.
-    *American Economic Review, 110*(10), 3267–3297.
+    *American Economic Review, 110*(10), 3267-3297.
     https://doi.org/10.1257/aer.20190623
     """
     nash_reward /= len(rewards)

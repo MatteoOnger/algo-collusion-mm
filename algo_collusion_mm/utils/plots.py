@@ -709,7 +709,7 @@ def plot_maker_belief(
     return ax
 
 
-def plot_maker_belief_evolution(
+def plot_maker_belief_evolution_dc(
     maker: Maker,
     values: np.ndarray|None = None,
     adaptive_scale: bool = False,
@@ -797,6 +797,93 @@ def plot_maker_belief_evolution(
     controls = widgets.HBox([play, slider])
     display(widgets.VBox([controls]))
     return
+
+
+def plot_maker_belief_evolution_sc(
+    maker: Maker,
+    matrix: np.ndarray|None = None,
+    curr_idx: int|None = None,
+    next_idx: int|None = None,
+    title: str = 'Belief Evolution',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
+    """
+    Plot the evolution of the maker's belief between two rounds.
+
+    This function visualizes how a 2D belief-related matrix changes from one round
+    (`curr_idx`) to the next (`next_idx`). The resulting heatmap displays the difference 
+    `matrix[next] - matrix[curr]` for each bid-ask combination, while each cell is annotated 
+    with the pair of values `(current, next)` for direct comparison. Data can be supplied 
+    directly using `matrix`, or retrieved from the maker's history via 
+    `maker.history.get_extras`.
+
+    Parameters
+    ----------
+    maker : Maker
+        The maker instance containing pricing information and stored historical data.
+    matrix : np.ndarray or None, default=None
+        Optional precomputed 3D array of shape `(2, n_prices, n_prices)` where  
+        `matrix[0]` contains current-round values and `matrix[1]` contains next-round 
+        values. If provided, it is used directly (after transposing). Otherwise, values 
+        are obtained from `maker.history.get_extras(curr_idx)` and 
+        `maker.history.get_extras(next_idx)`.
+    curr_idx : int or None, default=None
+        Round index for the “current” snapshot of the belief or tracked quantity. 
+        Ignored if `matrix` is provided.
+    next_idx : int or None, default=None
+        Round index for the “next” snapshot of the belief or tracked quantity. 
+        Ignored if `matrix` is provided.
+    title : str, default='Belief Evolution'
+        Title for the resulting heatmap.
+    ax : matplotlib.axes.Axes or None, default=None
+        Axis on which to draw the heatmap. If None, a new figure and axis are created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        Axis containing the generated heatmap.
+
+    Notes
+    -----
+    - The heatmap displays the difference between the next and current matrices.
+    - Cell annotations contain two lines: the current-round value and the next-round value.
+    - The x-axis represents ask prices, and the y-axis represents bid prices.
+    - Only cells corresponding to valid actions (given by `maker.action_space`) are filled.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+        
+    if matrix is None:
+        unique_actions = maker.price_to_index(maker.action_space)
+
+        matrix = np.full((2, len(maker.prices), len(maker.prices)), np.nan)
+        matrix[0, unique_actions[:, 1], unique_actions[:, 0]] = maker.history.get_extras(curr_idx)
+        matrix[1, unique_actions[:, 1], unique_actions[:, 0]] = maker.history.get_extras(next_idx)
+    else:
+        matrix = matrix.swapaxes(1, 2)
+
+    annotations = np.empty(matrix.shape[1:], dtype=object)
+    for i in range(matrix.shape[1]):
+        for j in range(matrix.shape[2]):
+            if not np.isnan(matrix[:, i, j]).all():
+                annotations[i, j] = f'{matrix[0, i, j]:.{DECIMAL_PLACES_VALUES}f}\n{matrix[1, i, j]:.{DECIMAL_PLACES_VALUES}f}'
+
+    sns.heatmap(
+        matrix[1] - matrix[0],
+        annot = annotations,
+        annot_kws = {'size': 8},
+        fmt = '',
+        cmap = 'viridis',
+        cbar = True,
+        xticklabels = maker.prices,
+        yticklabels = maker.prices,
+        ax = ax
+    )
+
+    ax.set_title(f'{title} ({curr_idx} -> {next_idx}) - {maker.name.capitalize()}')
+    ax.set_xlabel('Ask Price')
+    ax.set_ylabel('Bid Price')
+    return ax
 
 
 def plot_maker_rewards(
