@@ -85,7 +85,13 @@ def split_array(arr: np.ndarray, window_size: int) -> np.ndarray:
     return arr.reshape(arr.shape[:-1] + (-1, window_size))
 
 
-def get_calvano_collusion_index(rewards: np.ndarray, nash_reward: float, coll_reward: float, window_size: int = 0) -> np.ndarray:
+def get_calvano_collusion_index(
+    rewards: np.ndarray,
+    nash_reward: float,
+    coll_reward: float,
+    window_size: int = 0,
+    decimal_places: int = 3
+) -> np.ndarray:
     """
     Compute the Calvano Collusion Index (CCI) from agent rewards.
 
@@ -104,6 +110,8 @@ def get_calvano_collusion_index(rewards: np.ndarray, nash_reward: float, coll_re
     window_size : int, default=0
         Size of the window in number of rounds for reward aggregation.
         If 0, no windowing is applied.
+    decimal_places : int, default=3
+        Number of decimal places to which rewards are rounded.
 
     Returns
     -------
@@ -118,8 +126,8 @@ def get_calvano_collusion_index(rewards: np.ndarray, nash_reward: float, coll_re
     *American Economic Review, 110*(10), 3267-3297.
     https://doi.org/10.1257/aer.20190623
     """
-    nash_reward /= len(rewards)
-    coll_reward /= len(rewards)
+    nash_reward = np.round(nash_reward / len(rewards), decimal_places)
+    coll_reward = np.round(coll_reward / len(rewards), decimal_places)
 
     rewards = split_array(rewards, window_size)
     avg_rewards = rewards.mean(axis=-1)
