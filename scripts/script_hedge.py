@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Tuple
 from algo_collusion_mm.agents.makers.informed.hedge import MakerHedge
 from algo_collusion_mm.agents.traders.nopass import NoPassTrader
 from algo_collusion_mm.envs import GMEnv
-from algo_collusion_mm.utils.common import get_calvano_collusion_index
+from algo_collusion_mm.utils.common import get_calvano_collusion_index, get_relative_deviation_competition
 from algo_collusion_mm.utils.stats import OnlineVectorStats
 from algo_collusion_mm.utils.storage import ExperimentStorage
 
@@ -35,10 +35,11 @@ def multiple_runs(
     nash_reward: float,
     coll_reward: float,
     saver_base_path: str,
+    decimal_places: int = 3,
     n_episodes: int = 100,
     n_rounds: int = 10_000,
     n_windows: int = 100
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
     """
     Run multiple independent episodes in a Glosten-Milgrom market simulation.
 
@@ -76,6 +77,8 @@ def multiple_runs(
         Baseline per-agent reward under full collusion, used to normalize the CCI.
     saver_base_path : str
         Base directory where experiment results, logs, and generated plots are saved.
+    decimal_places : int, default=3
+        Number of decimal places to which rewards are rounded.
     n_episodes : int, default=100
         Number of independent episode repetitions.
     n_rounds : int, default=10_000
@@ -93,6 +96,9 @@ def multiple_runs(
           Shape: (n_makers_i, n_windows)
         - **stats_sorted_cci** : OnlineVectorStats  
           Same as above, but with makers sorted by their final-window CCI.
+        - **stats_rcd** : OnlineVectorStats  
+          Mean, variance, and extrema of the Relative Deviation from Competition (RDC) index across all runs.  
+          Shape: (n_makers_i, n_windows)
         - **stats_action_freq** : OnlineVectorStats  
           Frequency of each market maker's actions across runs and in the first and last window.
           Shape: (n_makers_i, 2, len(action_space))
@@ -110,6 +116,8 @@ def multiple_runs(
       number generators to ensure independence.
     - The Calvano Collusion Index (CCI) measures the degree of collusive behavior,
       where `CCI = 0` corresponds to Nash equilibrium and `CCI = 1` to full collusion.
+    - The RDC measures how much agents' realized rewards exceed (or fall below)
+      the competitive benchmark, defined by the Nash equilibrium reward.
     - The function automatically saves per-agent reward histories, action frequencies,
       and summary plots.
     - Final summaries include per-window averages, minima, maxima, and standard deviations
@@ -120,12 +128,14 @@ def multiple_runs(
     ExperimentStorage : Handles data persistence, logging, and metadata serialization.
     OnlineVectorStats : Tracks online means and variances for high-dimensional data.
     get_calvano_collusion_index : Computes the CCI given agents' reward histories.
+    get_relative_deviation_competition : Computes the RCD given agents' reward histories.
     """
     window_size = n_rounds // n_windows   # Window size
 
     # To compute online statistics
     stats_cci = OnlineVectorStats((n_makers_i, n_windows))
     stats_sorted_cci = OnlineVectorStats((n_makers_i, n_windows))
+    stats_rdc = OnlineVectorStats((n_makers_i, n_windows))
     stats_action_freq = OnlineVectorStats((n_makers_i, 2, len(action_space)))
     stats_joint_action_freq = OnlineVectorStats((2,) + n_makers_i * (len(action_space),))
     stats_belief = OnlineVectorStats((n_makers_i, len(action_space)))
@@ -161,7 +171,8 @@ def multiple_runs(
         n_makers_u = 0,
         n_makers_i = n_makers_i,
         n_traders = n_traders,
-        agents_action_space = action_space
+        agents_action_space = action_space,
+        decimal_places = decimal_places
     )
 
     for i in range(n_episodes):
@@ -189,7 +200,16 @@ def multiple_runs(
             np.array([agents[name].history.get_rewards() for name in env.makers]),
             nash_reward = nash_reward,
             coll_reward = coll_reward,
-            window_size = window_size
+            window_size = window_size,
+            decimal_places = decimal_places
+        )
+
+        # Compute relative deviation from competition index per window and agent
+        rdc = get_relative_deviation_competition(
+            np.array([agents[name].history.get_rewards() for name in env.makers]),
+            nash_reward = nash_reward,
+            window_size = window_size,
+            decimal_places = decimal_places
         )
 
         # Collect info
@@ -225,6 +245,11 @@ def multiple_runs(
                 0  : {name : round(float(cci[idx, 0]), 3) for idx, name in enumerate(env.makers)},
                 n_windows  : {name : round(float(cci[idx, -1]), 3) for idx, name in enumerate(env.makers)},
                 'global' : {name : round(float(cci[idx, :].mean()), 3) for idx, name in enumerate(env.makers)},
+            },
+            'rdc' : {
+                0  : {name : round(float(rdc[idx, 0]), 3) for idx, name in enumerate(env.makers)},
+                n_windows  : {name : round(float(rdc[idx, -1]), 3) for idx, name in enumerate(env.makers)},
+                'global' : {name : round(float(rdc[idx, :].mean()), 3) for idx, name in enumerate(env.makers)},
             }
         }
 
@@ -249,6 +274,7 @@ def multiple_runs(
         # Update statistics
         stats_cci.update(cci)
         stats_sorted_cci.update(sorted_cci)
+        stats_rdc.update(rdc)
         stats_action_freq.update(np.array(
             [[
                 agents[maker].history.compute_freqs(slice(window_size)),
@@ -270,13 +296,14 @@ def multiple_runs(
     
     # Save plot
     fig = plots.plot_all_stats(
-        window_size,
-        [agents[maker] for maker in env.makers],
-        stats_cci,
-        stats_sorted_cci,
-        stats_action_freq,
-        stats_joint_action_freq,
-        stats_belief,
+        window_size = window_size,
+        makers = [agents[maker] for maker in env.makers],
+        stats_cci = stats_cci,
+        stats_sorted_cci = stats_sorted_cci,
+        stats_rdc = stats_rdc,
+        stats_actions_freq = stats_action_freq,
+        stats_joint_actions_freq = stats_joint_action_freq,
+        stats_belief = stats_belief,
         title = f'Hedge - Makers Statistics Summary Plot - Epsilon:{list(agents.values())[0].epsilon}'
     )
     saver.save_figures({f'PLOT': fig})
@@ -295,21 +322,21 @@ def multiple_runs(
         f' - [SORTED CCI] Minimum: {np.round(stats_sorted_cci.get_min()[:, -1], 4)}\n'
         f' - [SORTED CCI] Maximum: {np.round(stats_sorted_cci.get_max()[:, -1], 4)}\n'
         f' - [SORTED CCI] Standard deviation: {np.round(stats_sorted_cci.get_std(sample=False)[:, -1], 4)}\n'
+        f' - [RDC] Average: {np.round(stats_rdc.get_mean()[:, -1], 4)}\n'
         f' - [RWD] Expected: {np.round(exp_rwd), 4}\n'
-        f' - [RWD] Ratio expected over competitive: {np.round(exp_rwd / (nash_reward / n_makers_i)), 4}\n'
         f'- Global:\n'
         f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
         f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
         silent = True
     )
-    return stats_cci, stats_sorted_cci, stats_action_freq, stats_joint_action_freq, stats_belief
+    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_belief
 
 
 def worker(
     run_id: int,
     fixed_params: Dict[str, Any],
     variable_params: List[Dict[str, Any]]
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
     """
     Execute a single experiment configuration for use in parallelized Glosten-Milgrom simulations.
 
@@ -344,6 +371,8 @@ def worker(
           Shape: (n_makers_i, n_windows)
         - **stats_sorted_cci** : OnlineVectorStats  
           Same as above, but with makers sorted by their final-window CCI.
+        - The RDC measures how much agents' realized rewards exceed (or fall below)
+          the competitive benchmark, defined by the Nash equilibrium reward.
         - **stats_action_freq** : OnlineVectorStats  
           Frequency of each market maker's actions across runs and in the first and last window.
           Shape: (n_makers_i, 2, len(action_space))
@@ -384,7 +413,7 @@ def worker(
 if __name__ == '__main__':
     saver = ExperimentStorage(BASE_PATH)
 
-    max_workers = 6
+    max_workers = 7
     n_parallel_runs = 99
 
     start_time = time.time()
@@ -418,12 +447,14 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
+            'decimal_places': 3,
             'n_episodes': r,
             'n_rounds': n,
             'n_windows': k
         },
         'agent': {
             'maker': {
+                'decimal_places': 3,
                 'action_space': action_space,
             },
             'trader': {
@@ -456,13 +487,15 @@ if __name__ == '__main__':
 
     # Print results
     for i, results in enumerate(results_list):
-        stats_cci, stats_sorted_cci, stats_action_freq, stats_joint_action_freq, stats_belief = results
+        stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_belief = results
         
         min_cci, mean_cci, max_cci = stats_cci.get_min(), stats_cci.get_mean(), stats_cci.get_max()
         std_cci = stats_cci.get_std(sample=False)
         
         mean_sorted_cci = stats_sorted_cci.get_mean()
         std_sorted_cci = stats_sorted_cci.get_std(sample=False)
+
+        mean_rdc = stats_rdc.get_mean()
 
         mean_action_freq = stats_action_freq.get_mean()[:, 1, :]
         most_common_action_idx = np.argmax(mean_action_freq, axis=1)
@@ -478,6 +511,7 @@ if __name__ == '__main__':
             f' - [CCI] Average: {np.round(mean_cci[:, -1], 4)}\n'
             f' - [CCI] Standard deviation: {np.round(std_cci[:, -1], 4)}\n'
             f' - [CCI] Minimum and Maximum:{np.round(min_cci[:, -1], 4)}, {np.round(max_cci[:, -1], 4)}\n'
+            f' - [RDC] Average: {np.round(mean_rdc[:, -1], 4)}\n'
             f' - [ACTION] Most common: {str(action_space[most_common_action_idx]).replace('\n', '')}\n'
             f' - [ACTION] Relative frequency: {np.round(mean_action_freq[np.arange(n_makers_i), most_common_action_idx], 4)}\n'
             f' - [JOINT ACTION] Most common: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}\n'

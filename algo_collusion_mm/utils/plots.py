@@ -332,7 +332,6 @@ def plot_all_stats(
             xlabel = 'Round',
             x = window_size * np.arange(stats_rdc.dim[1]),
             rdc = stats_rdc.get_mean(),
-            std = stats_rdc.get_std(sample=False),
             min = stats_rdc.get_min(),
             max = stats_rdc.get_max(),
             makers_name = [maker.name for maker in makers],
