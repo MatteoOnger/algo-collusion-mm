@@ -134,3 +134,53 @@ def get_calvano_collusion_index(
 
     cci = (avg_rewards - nash_reward) / (coll_reward - nash_reward)
     return cci
+
+
+def get_relative_deviation_competition(
+    rewards: np.ndarray,
+    nash_reward: float,
+    window_size: int = 0,
+    decimal_places: int = 3
+) -> np.ndarray:
+    """
+    Compute the Relative Deviation from Competition (RDC) index from agent rewards.
+
+    The RDC measures how much agents' realized rewards exceed (or fall below)
+    the competitive benchmark, defined by the Nash equilibrium reward.
+    Optionally, rewards can be aggregated over fixed-size windows before
+    computing the index.
+
+    The RDC for an agent or window is defined as:
+
+        RDC = (r - r_comp) / r_comp
+    
+    where r is the observed average reward and r_comp is the per-agent
+    Nash equilibrium reward.
+
+    Parameters
+    ----------
+    rewards : np.ndarray
+        Array of shape (n_agents, n_rounds) containing per-agent rewards.
+    nash_reward : float
+        Total reward under the Nash equilibrium (across all agents).
+        This value is internally converted to a per-agent reward.
+    window_size : int, default=0
+        Window length (in rounds) used to aggregate rewards. If 0, no
+        windowing is applied and all rounds are used as a single window.
+    decimal_places : int, default=3
+        Number of decimal places used when rounding the per-agent
+        competitive reward.
+
+    Returns
+    -------
+    : np.ndarray
+        Array of RDC values with shape (n_agents, n_windows), where
+        `n_windows` depends on the `window_size`.
+    """
+    nash_reward = np.round(nash_reward / len(rewards), decimal_places)
+
+    rewards = split_array(rewards, window_size)
+    avg_rewards = rewards.mean(axis=-1)
+
+    rdc = (avg_rewards - nash_reward) / nash_reward
+    return rdc
