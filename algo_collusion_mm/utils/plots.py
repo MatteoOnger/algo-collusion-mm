@@ -207,6 +207,7 @@ def plot_all_stats(
     makers: List[Maker],
     stats_cci: OnlineVectorStats|None = None,
     stats_sorted_cci: OnlineVectorStats|None = None,
+    stats_rdc: OnlineVectorStats|None = None,
     stats_actions_freq: OnlineVectorStats|None = None,
     stats_joint_actions_freq: OnlineVectorStats|None = None,
     stats_belief: OnlineVectorStats|None = None,
@@ -222,16 +223,18 @@ def plot_all_stats(
     action frequencies, and belief matrices.
 
     Depending on the provided statistical trackers, the figure may include up to 
-    five main sections (stacked vertically):
+    six main sections (stacked vertically):
 
     1. **Mean Calvano Collusion Index (CCI)** — shows per-maker mean, standard deviation,
        minimum, and maximum CCI values over time.
     2. **Mean Sorted CCI** — displays the same statistics after sorting makers by CCI.
-    3. **Mean Relative Action Frequencies** — one heatmap per maker, showing average 
+    3. **Mean Relative Deviation from Competition (RDC)** index  — shows per-maker mean, standard deviation,
+       minimum, and maximum RDC values over time.
+    4. **Mean Relative Action Frequencies** — one heatmap per maker, showing average 
        action frequency matrices for the first and last simulation windows.
-    4. **Mean Joint Action Frequencies** — shown the joint action distributions
+    5. **Mean Joint Action Frequencies** — shown the joint action distributions
        for the first and last windows.
-    5. **Mean Final Belief Matrices** — optional section showing each maker's belief matrix 
+    6. **Mean Final Belief Matrices** — optional section showing each maker's belief matrix 
        mean and standard deviation across windows.
 
     Parameters
@@ -246,6 +249,9 @@ def plot_all_stats(
     stats_sorted_cci : OnlineVectorStats or None, default=None
         Online statistics tracker for CCI values after sorting makers by their CCI.
         Generates an additional subplot if provided.
+    stats_rdc : OnlineVectorStats or None, default=None
+        Online statistics tracker for Relative Deviation from Competition (RDC) index
+        values per maker over time. Generates a time-series subplot if provided.
     stats_actions_freq : OnlineVectorStats or None, default=None
         Online tracker for relative action frequency matrices per maker. 
         Generates two rows of heatmaps (first and last window means) if provided.
@@ -278,6 +284,7 @@ def plot_all_stats(
     n_makers = len(makers)
     n_rows = (stats_cci is not None) +\
         (stats_sorted_cci is not None) +\
+        (stats_rdc is not None) +\
         2 * (stats_actions_freq is not None) +\
         2 * (stats_joint_actions_freq is not None) +\
         (stats_belief is not None)
@@ -308,7 +315,7 @@ def plot_all_stats(
     if stats_sorted_cci is not None:
         plot_makers_cci(
             xlabel = 'Round',
-            x = window_size * np.arange(stats_cci.dim[1]),
+            x = window_size * np.arange(stats_sorted_cci.dim[1]),
             cci = stats_sorted_cci.get_mean(),
             std = stats_sorted_cci.get_std(sample=False),
             min = stats_sorted_cci.get_min(),
@@ -319,7 +326,21 @@ def plot_all_stats(
         )
         row += 1
 
-    # Row 3 and 4: mean relative actions frequency
+    # Row 3: mean rdc
+    if stats_rdc is not None:
+        plot_makers_rdc(
+            xlabel = 'Round',
+            x = window_size * np.arange(stats_rdc.dim[1]),
+            rdc = stats_rdc.get_mean(),
+            min = stats_rdc.get_min(),
+            max = stats_rdc.get_max(),
+            makers_name = [maker.name for maker in makers],
+            title = 'Mean Relative Deviation from Competition (RDC)',
+            ax = fig.add_subplot(gs[row, :])
+        )
+        row += 1
+
+    # Row 4 and 5: mean relative actions frequency
     if stats_actions_freq is not None:
         for i, maker in enumerate(makers):
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
@@ -359,7 +380,7 @@ def plot_all_stats(
             )
         row += 1
 
-    # Row 5 and 4: mean relative joint actions frequency
+    # Row 6 and 7: mean relative joint actions frequency
     if (stats_joint_actions_freq is not None):
         ax_comb_1 = fig.add_subplot(gs[row, :])
         ax_comb_2 = fig.add_subplot(gs[row+1, :])
@@ -400,7 +421,7 @@ def plot_all_stats(
             )
         row += 2
 
-    # Row 7: mean final belief
+    # Row 8: mean final belief
     if stats_belief is not None:
         for i, maker in enumerate(makers):
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
@@ -709,7 +730,7 @@ def plot_maker_belief(
     return ax
 
 
-def plot_maker_belief_evolution(
+def plot_maker_belief_evolution_dc(
     maker: Maker,
     values: np.ndarray|None = None,
     adaptive_scale: bool = False,
@@ -797,6 +818,93 @@ def plot_maker_belief_evolution(
     controls = widgets.HBox([play, slider])
     display(widgets.VBox([controls]))
     return
+
+
+def plot_maker_belief_evolution_sc(
+    maker: Maker,
+    matrix: np.ndarray|None = None,
+    curr_idx: int|None = None,
+    next_idx: int|None = None,
+    title: str = 'Belief Evolution',
+    ax: plt.Axes|None = None
+) -> plt.Axes:
+    """
+    Plot the evolution of the maker's belief between two rounds.
+
+    This function visualizes how a 2D belief-related matrix changes from one round
+    (`curr_idx`) to the next (`next_idx`). The resulting heatmap displays the difference 
+    `matrix[next] - matrix[curr]` for each bid-ask combination, while each cell is annotated 
+    with the pair of values `(current, next)` for direct comparison. Data can be supplied 
+    directly using `matrix`, or retrieved from the maker's history via 
+    `maker.history.get_extras`.
+
+    Parameters
+    ----------
+    maker : Maker
+        The maker instance containing pricing information and stored historical data.
+    matrix : np.ndarray or None, default=None
+        Optional precomputed 3D array of shape `(2, n_prices, n_prices)` where  
+        `matrix[0]` contains current-round values and `matrix[1]` contains next-round 
+        values. If provided, it is used directly (after transposing). Otherwise, values 
+        are obtained from `maker.history.get_extras(curr_idx)` and 
+        `maker.history.get_extras(next_idx)`.
+    curr_idx : int or None, default=None
+        Round index for the “current” snapshot of the belief or tracked quantity. 
+        Ignored if `matrix` is provided.
+    next_idx : int or None, default=None
+        Round index for the “next” snapshot of the belief or tracked quantity. 
+        Ignored if `matrix` is provided.
+    title : str, default='Belief Evolution'
+        Title for the resulting heatmap.
+    ax : matplotlib.axes.Axes or None, default=None
+        Axis on which to draw the heatmap. If None, a new figure and axis are created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        Axis containing the generated heatmap.
+
+    Notes
+    -----
+    - The heatmap displays the difference between the next and current matrices.
+    - Cell annotations contain two lines: the current-round value and the next-round value.
+    - The x-axis represents ask prices, and the y-axis represents bid prices.
+    - Only cells corresponding to valid actions (given by `maker.action_space`) are filled.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+        
+    if matrix is None:
+        unique_actions = maker.price_to_index(maker.action_space)
+
+        matrix = np.full((2, len(maker.prices), len(maker.prices)), np.nan)
+        matrix[0, unique_actions[:, 1], unique_actions[:, 0]] = maker.history.get_extras(curr_idx)
+        matrix[1, unique_actions[:, 1], unique_actions[:, 0]] = maker.history.get_extras(next_idx)
+    else:
+        matrix = matrix.swapaxes(1, 2)
+
+    annotations = np.empty(matrix.shape[1:], dtype=object)
+    for i in range(matrix.shape[1]):
+        for j in range(matrix.shape[2]):
+            if not np.isnan(matrix[:, i, j]).all():
+                annotations[i, j] = f'{matrix[0, i, j]:.{DECIMAL_PLACES_VALUES}f}\n{matrix[1, i, j]:.{DECIMAL_PLACES_VALUES}f}'
+
+    sns.heatmap(
+        matrix[1] - matrix[0],
+        annot = annotations,
+        annot_kws = {'size': 8},
+        fmt = '',
+        cmap = 'viridis',
+        cbar = True,
+        xticklabels = maker.prices,
+        yticklabels = maker.prices,
+        ax = ax
+    )
+
+    ax.set_title(f'{title} ({curr_idx} -> {next_idx}) - {maker.name.capitalize()}')
+    ax.set_xlabel('Ask Price')
+    ax.set_ylabel('Bid Price')
+    return ax
 
 
 def plot_maker_rewards(
@@ -1316,4 +1424,90 @@ def plot_makers_joint_actions_freq_pc(
     ax2.set_ylabel(ax.get_ylabel())
     ax2.set_yticks(ax.get_yticks())
     ax2.set_yticklabels(ax.get_yticklabels())
+    return ax
+
+
+def plot_makers_rdc(
+    xlabel: str,
+    x: np.ndarray,
+    rdc: np.ndarray|None,
+    std: np.ndarray|None = None,
+    min: np.ndarray|None = None,
+    max: np.ndarray|None = None,
+    makers_name: List[str]|None = None,
+    title: str = 'Relative Deviation from Competition (RDC)',
+    ax: plt.Axes|None = None,
+) -> plt.Axes:
+    """
+    Plot the Relative Deviation from Competition (RDC) index for multiple makers.
+
+    Each maker's RDC time series is plotted as a separate line. 
+    The average RDC across makers is also included as a dashed red line.
+    Optionally, standard deviation bands or min/max envelopes can be added.
+
+    Parameters
+    ----------
+    xlabel : str
+        Label of the horizontal axis.
+    x : np.ndarray
+        Horizontal axis values (e.g., rounds, time steps, or windows).
+    rdc : np.ndarray
+        Array of shape (n_makers, n_windows) containing the RDC per maker.
+    std : np.ndarray or None, default=None
+        Array of shape (n_makers, n_windows) with the standard deviation of the RDC. 
+        If provided, shaded regions representing ±1 standard deviation are plotted.
+    min : np.ndarray or None, default=None
+        Array of shape (n_makers, n_windows) with the minimum RDC values per maker.
+        If provided, plotted as dashed boundary lines.
+    max : np.ndarray or None, default=None
+        Array of shape (n_makers, n_windows) with the maximum RDC values per maker.
+        If provided, plotted as dashed boundary lines.
+    makers_name : list of str or None, default=None
+        Names of the makers, used as labels in the legend. If None, generic names are assigned.
+    title : str, default='Relative Deviation from Competition (RDC)'
+        Title of the plot.
+    ax : matplotlib.axes.Axes or None, default=None
+        Axis on which to plot. If None, a new axis is created.
+
+    Returns
+    -------
+    : matplotlib.axes.Axes
+        The axis containing the plot.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+
+    cmap = plt.get_cmap("tab10")
+ 
+    if std is None:
+        std = [None] * len(rdc)
+    if min is None:
+        min = [None] * len(rdc)
+    if max is None:
+        max = [None] * len(rdc)
+    if makers_name is None:
+        makers_name = [f'unknown_{i}' for i in range(len(rdc))]
+
+    for i, (maker, series_rdc, series_std, series_min, series_max) in enumerate(zip(makers_name, rdc, std, min, max)):
+        ax.plot(x, series_rdc, label=maker.capitalize(), color=cmap(i % 10), marker='*')
+        if series_std is not None:
+            ax.fill_between(
+                x,
+                series_rdc - series_std,
+                series_rdc + series_std,
+                color = cmap(i % 10),
+                alpha = 0.3
+            )
+        if series_min is not None:
+            ax.plot(x, series_min, color=cmap(i % 10), alpha=0.5, ls='--')
+        if series_max is not None:
+            ax.plot(x, series_max, color=cmap(i % 10), alpha=0.5, ls='--')
+    
+    ax.plot(x, rdc.mean(axis=0), label='Average', color='red', ls='--')
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel('Relative Deviation')
+    ax.grid(True)
+    ax.legend()
     return ax

@@ -315,7 +315,7 @@ def find_best_cce(
     return p_opt, problem.value
 
 
-def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = False, fast: bool = True) -> bool:
+def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, strict: bool = False, fast: bool = True, verbose: bool = False) -> bool:
     """
     Check whether a given strategy profile is a Coarse Correlated Equilibrium (CCE).
 
@@ -331,10 +331,12 @@ def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fa
     strategy_profile : np.ndarray
         A probability distribution over joint actions, of shape `(*action_spaces,)`.
         Each entry gives the probability of that joint action being played. The distribution must sum to 1.
-    verbose : bool, default=False
-        If True, prints a message for each player that has an incentive to deviate.
+    strict : bool, default=False
+        If True, print a warning if the strategy profile is not a stirct equilibrium.
     fast : bool, default=True
         If True, returns immediately when a deviation is found. Otherwise, checks all players before returning.
+    verbose : bool, default=False
+        If True, prints a message for each player that has an incentive to deviate.
 
     Returns
     -------
@@ -374,9 +376,12 @@ def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fa
             lhs = np.sum(probs_flat * payoffs_flat[indices_original, i])
             rhs = np.sum(probs_flat * payoffs_flat[indices_deviated, i])
 
+            if strict and rhs >= lhs - TOL:
+                print(f'- [NO STRICT] Player {i} has incentive to deviate to {a_i_prime}: {lhs:.4f} == {rhs:.4f}')
+
             if lhs + TOL < rhs:
                 if verbose:
-                    print(f'Player {i} has incentive to deviate to {a_i_prime}: {lhs:.4f} < {rhs:.4f}')
+                    print(f'- Player {i} has incentive to deviate to {a_i_prime}: {lhs:.4f} < {rhs:.4f}')
                 if fast:
                     return False
                 else:
@@ -384,7 +389,7 @@ def is_cce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fa
     return flag
 
 
-def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = False, fast: bool = True) -> bool:
+def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, strict: bool = False, fast: bool = True, verbose: bool = False) -> bool:
     """
     Check whether a given joint strategy profile is a Correlated Equilibrium (CE).
 
@@ -401,11 +406,13 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
     strategy_profile : np.ndarray
         A probability distribution over joint actions, of shape `(*action_spaces,)`.
         Each entry gives the probability of that joint action being played. The distribution must sum to 1.
-    verbose : bool, default=False
-        If True, prints information when a profitable deviation is detected.
+    strict : bool, default=False
+        If True, print a warning if the strategy profile is not a stirct equilibrium.
     fast : bool, default=True
         If True, returns immediately after the first violation. If False, checks all pairs.
-
+    verbose : bool, default=False
+        If True, prints information when a profitable deviation is detected.
+        
     Returns
     -------
     : bool
@@ -453,6 +460,9 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
                 lhs = np.sum(probs_flat[idx_original] * payoffs_flat[idx_original, i])
                 rhs = np.sum(probs_flat[idx_original] * payoffs_flat[idx_deviated, i])
 
+                if strict and rhs >= lhs - TOL:
+                    print(f'- [NO STRICT] Player {i} has incentive to deviate to {a_i_prime}: {lhs:.4f} == {rhs:.4f}')
+
                 if lhs + TOL < rhs:
                     if verbose:
                         print(f"Player {i} prefers to deviate from {a_i} → {a_i_prime}: {lhs:.4f} < {rhs:.4f}")
@@ -462,7 +472,7 @@ def is_ce(payoffs: np.ndarray, strategy_profile: np.ndarray, verbose: bool = Fal
     return flag
 
 
-def is_ne(payoffs: np.ndarray, strategies: np.ndarray, verbose: bool = False, fast: bool = True) -> bool:
+def is_ne(payoffs: np.ndarray, strategies: np.ndarray, strict: bool = False, fast: bool = True, verbose: bool = False) -> bool:
     """
     Check whether a given strategy profile (product of mixed strategies) is a Nash Equilibrium.
 
@@ -476,10 +486,12 @@ def is_ne(payoffs: np.ndarray, strategies: np.ndarray, verbose: bool = False, fa
         Array of shape `(n_players, max_actions_i)`, where each row gives a player's mixed strategy
         over their available actions. If players have different numbers of actions, unused entries
         (beyond each player's action count) should be zero. Each player's strategy must sum to 1.
-    verbose : bool, default=False
-        If True, prints information when a profitable deviation is detected.
+    strict : bool, default=False
+        If True, print a warning if the strategy profile is not a stirct equilibrium.
     fast : bool, default=True
         If True, returns immediately after the first violation. If False, checks all players and actions.
+    verbose : bool, default=False
+        If True, prints information when a profitable deviation is detected.
 
     Returns
     -------
@@ -523,6 +535,9 @@ def is_ne(payoffs: np.ndarray, strategies: np.ndarray, verbose: bool = False, fa
             # Expected payoff when following recommendation and when deviating to a_i_prime
             expected_payoff = np.sum(joint_probs * payoffs_flat[:, i])
             deviated_expected_payoff = np.sum(deviated_joint_probs * payoffs_flat[:, i])
+
+            if strict and deviated_expected_payoff >= expected_payoff - TOL:
+                print(f'- [NO STRICT] Player {i} has incentive to deviate to {a_i_prime}: {expected_payoff:.4f} == {deviated_expected_payoff:.4f}')
 
             if expected_payoff + TOL < deviated_expected_payoff:
                 if verbose:
