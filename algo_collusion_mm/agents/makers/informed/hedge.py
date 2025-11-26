@@ -143,6 +143,19 @@ class MakerHedge(Maker):
 
 
     def update(self, reward: float, info: Dict) -> None:
+        """
+        Update the agent's internal state based on the reward received
+        and additional information from the enivironment.
+
+        Parameters
+        ----------
+        reward : float
+            The reward assigned to the agent for the most recent action.
+        info : dict of str
+            A dictionary containing environment feedback, with keys:
+                - 'rewards' (np.ndarray): Rewards corresponding to each action
+                    in the action space of this agent.
+        """
         if self.last_action is None:
             return
 

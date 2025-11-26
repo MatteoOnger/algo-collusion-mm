@@ -443,6 +443,7 @@ class GMEnv(ptz.AECEnv):
                 - 'agent_index' (int): Index of the agent in `self.possible_agents`.
                 - 'true_value' (float): The true value of the asset.
                 - 'actions' (np.ndarray): Array of (ask, bid) action pairs.
+                - 'op_done' (str): The operation performed by the trader ('buy', 'sell', or 'pass').
                 - 'rewards' (np.ndarray): Rewards corresponding to each action.
         """
         i = self.agent_name_mapping[agent]
@@ -460,10 +461,17 @@ class GMEnv(ptz.AECEnv):
             else:
                 rewards = None
 
+            op_done = 'pass'
+            if self.trader_action == GMEnv.TraderAction.BUY:
+                op_done = 'buy'
+            elif self.trader_action == GMEnv.TraderAction.SELL:
+                op_done = 'sell'
+
             info = {
                 'agent_index': i,
                 'true_value': self.true_value,
                 'actions': np.array(list(zip(self._ask_prices, self._bid_prices)), dtype=np.float64),
+                'op_done': op_done,
                 'rewards': rewards
             }
         else:
