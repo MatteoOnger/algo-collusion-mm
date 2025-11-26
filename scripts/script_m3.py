@@ -9,7 +9,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Tuple
 
-from algo_collusion_mm.agents.makers.informed.hedge import MakerHedge
+from algo_collusion_mm.agents.makers.informed.m3 import MakerM3
 from algo_collusion_mm.agents.traders.nopass import NoPassTrader
 from algo_collusion_mm.envs import GMEnv
 from algo_collusion_mm.utils.common import get_calvano_collusion_index, get_relative_deviation_competition
@@ -18,7 +18,7 @@ from algo_collusion_mm.utils.storage import ExperimentStorage
 
 
 
-BASE_PATH = os.path.join('.', 'experiments', 'hedge')
+BASE_PATH = os.path.join('.', 'experiments', 'm3')
 FUNC_SCALE_REWARD = lambda r: r / 0.3
 FUNC_GENERATE_VT = lambda: 0.5
 
@@ -44,7 +44,7 @@ def multiple_runs(
     Run multiple independent episodes in a Glosten-Milgrom market simulation.
 
     This function performs several independent runs of a simulated Glosten-Milgrom
-    financial market populated by informed market makers based on Hedge and traders.
+    financial market populated by informed market makers based on M3 and traders.
     In each run, all agents are reinitialized and reseeded before simulating a sequence
     of trading rounds. Performance metrics such as the Calvano Collusion Index (CCI),
     reward statistics, and action frequencies are computed over rolling time windows.
@@ -150,7 +150,7 @@ def multiple_runs(
 
     # Create agents
     agents = {
-        f'maker_i_{i}':MakerHedge(
+        f'maker_i_{i}':MakerM3(
             name = f'maker_i_{i}',
             scale_rewards = scale_rewards,
             **agents_fixed_params['maker'],
@@ -304,7 +304,7 @@ def multiple_runs(
         stats_actions_freq = stats_action_freq,
         stats_joint_actions_freq = stats_joint_action_freq,
         stats_belief = stats_belief,
-        title = f'Hedge - Makers Statistics Summary Plot - Epsilon:{list(agents.values())[0].epsilon}'
+        title = f'M3 - Makers Statistics Summary Plot - Epsilon:{list(agents.values())[0].epsilon}'
     )
     saver.save_figures({f'PLOT': fig})
 
@@ -421,11 +421,11 @@ if __name__ == '__main__':
     saver.print_and_save(f'Started at {current_time}')
 
     n_makers_i = 2
-    r, n, k = 250, 20_000, 100
+    r, n, k = 100, 10_000, 100
     prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
-    action_space = np.array([(ask, bid) for ask in prices for bid in prices if (ask  > bid)])
+    action_space = np.array([(ask, bid) for ask in prices for bid in prices])
 
-    x = MakerHedge.compute_epsilon(len(action_space), n)
+    x = 0.003
     epsilons = np.round(np.concat([
         x - np.arange(1,  8)[::-1] * 0.0005,
         np.array([x]),
@@ -447,14 +447,14 @@ if __name__ == '__main__':
             'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'decimal_places': 3,
+            'decimal_places': 2,
             'n_episodes': r,
             'n_rounds': n,
             'n_windows': k
         },
         'agent': {
             'maker': {
-                'decimal_places': 3,
+                'decimal_places': 2,
                 'action_space': action_space,
             },
             'trader': {
@@ -535,10 +535,10 @@ if __name__ == '__main__':
         min = lw_min_cci,
         max = lw_max_cci,
         makers_name = [f'maker_i_{i}' for i in range(n_makers_i)],
-        title = 'Hedge - Mean CCI wrt. Epsilons - Last Window',
+        title = 'M3 - Mean CCI wrt. Epsilons - Last Window',
         ax = axis
     )
-    axis.axvline(7, ls='--', color='black', alpha=0.7)
+    axis.axvline(11, ls='--', color='black', alpha=0.7)
     plt.tight_layout()
     saver.save_figures({'PLOT': fig})
 
