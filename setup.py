@@ -8,7 +8,7 @@ with open('README.md', 'r', encoding='utf-8') as f:
 
 setup(
     name='algo-collusion-mm',
-    version='0.1.0',
+    version='1.0.0',
     author='Matteo Onger',
     author_email='matteo.onger@studenti.unimi.it',
     description='Algorithmic collusion in market making',

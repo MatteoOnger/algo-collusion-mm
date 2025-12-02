@@ -3,7 +3,7 @@
 from typing import Dict
 
 from ..agent import Agent
-
+from ...enums import AgentType
 
 
 class Trader(Agent):
@@ -16,7 +16,7 @@ class Trader(Agent):
     keep track of actions taken and the rewards received.
     """
 
-    agent_type = False
+    type: AgentType = AgentType.ABSTRACT
 
 
     def __init__(self, name: str = 'trader', seed: int|None = None):

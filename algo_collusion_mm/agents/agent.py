@@ -5,6 +5,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple, Union
 
+from ..enums import AgentType
+
 
 
 class Agent(ABC):
@@ -23,8 +25,8 @@ class Agent(ABC):
         Internal tracker of actions taken, rewards and other infos.
     """
 
-    is_informed = False
-    """Indicates whether the agent receives extra information after each action."""
+    type: AgentType = AgentType.ABSTRACT
+    """Agent's type."""
 
 
     def __init__(self, name: str = 'agent', seed: int|None = None):
@@ -54,16 +56,14 @@ class Agent(ABC):
 
     @property
     def n_arms(self) -> int:
-        """ Number of actions.
-        """
+        """Number of actions."""
         return len(self.action_space)
     
 
     @property
     @abstractmethod
     def action_space(self) -> np.ndarray:
-        """ Action space.
-        """
+        """Action space."""
         pass
 
 
@@ -72,7 +72,7 @@ class Agent(ABC):
         Convert an array of actions to their corresponding indices based on the action space.
 
         This method takes a NumPy array of actions and maps each action to an index based on
-        its position in the predefined action space.
+        its position in the action space of the agent.
 
         Parameters
         -----------
@@ -194,7 +194,7 @@ class Agent(ABC):
             self._rewards = list()
             """List of rewards received after each action."""
             self._states = list()
-            """List of states observed at each step."""
+            """List of states observed at each step (optional)."""
             return
 
 
@@ -393,4 +393,4 @@ class Agent(ABC):
 
 
         def __len__(self) -> int:
-            return len(self._actions)
+            return max(len(self._actions), len(self._rewards), len(self._states), len(self._extras))

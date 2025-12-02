@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Callable, Dict
 
+from ....enums import AgentType
 from ..maker import Maker
 
 
@@ -46,7 +47,7 @@ class MakerEXP3(Maker):
     In Proceedings of IEEE 36th annual foundations of computer science (pp. 322-331). IEEE.
     """
 
-    is_informed = False
+    type: AgentType = AgentType.MAKER_U
 
 
     def __init__(

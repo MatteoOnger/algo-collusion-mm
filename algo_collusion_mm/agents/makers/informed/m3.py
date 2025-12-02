@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Callable, Dict
 
+from ....enums import AgentType
 from ..maker import Maker
 
 
@@ -46,7 +47,7 @@ class MakerM3(Maker):
     Market Making without Regret. arXiv preprint arXiv:2411.13993.
     """
 
-    is_informed = True
+    type: AgentType = AgentType.MAKER_I
 
     def __init__(
         self,
@@ -165,8 +166,8 @@ class MakerM3(Maker):
         if self.last_action is None:
             return
 
-        operation = info['op_done']
         rewards = info['rewards']
+        operations = info['op_done']
 
         if self._isswapped:
             self.last_action = self.last_action[::-1]
@@ -174,10 +175,11 @@ class MakerM3(Maker):
         arm_idx = self.action_to_index(self.last_action)
         scaled_reward = self.scale_rewards(rewards[arm_idx])
 
-        if operation ==  'buy':
+        # operation: 0 = buy, 1 = sell
+        if operations[arm_idx] ==  0:
             self._subagents[0].update(scaled_reward)
             self._subagents[1].update(0.0)
-        elif operation ==  'sell':
+        elif operations[arm_idx] ==  1:
             self._subagents[0].update(0.0)
             self._subagents[1].update(scaled_reward)
 

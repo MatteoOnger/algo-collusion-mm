@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Dict, Callable
 
+from ....enums import AgentType
 from ..maker import Maker
 
 
@@ -41,7 +42,7 @@ class MakerHedge(Maker):
     In Proceedings of IEEE 36th annual foundations of computer science (pp. 322-331). IEEE.
     """
 
-    is_informed = True
+    type: AgentType = AgentType.MAKER_I
 
 
     def __init__(

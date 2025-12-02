@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Tuple
 
 from algo_collusion_mm.agents.makers.informed.m3 import MakerM3
 from algo_collusion_mm.agents.traders.nopass import NoPassTrader
-from algo_collusion_mm.envs import GMEnv
+from algo_collusion_mm.envs import CGMEnv
 from algo_collusion_mm.utils.common import get_calvano_collusion_index, get_relative_deviation_competition
 from algo_collusion_mm.utils.stats import OnlineVectorStats
 from algo_collusion_mm.utils.storage import ExperimentStorage
@@ -165,7 +165,7 @@ def multiple_runs(
     }
 
     # Create env
-    env = GMEnv(
+    env = CGMEnv(
         generate_vt = generate_vt,
         n_rounds = n_rounds,
         n_makers_u = 0,

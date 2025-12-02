@@ -5,6 +5,7 @@ import numpy as np
 from abc import abstractmethod
 from typing import Dict
 
+from ...enums import AgentType
 from ..agent import Agent
 
 
@@ -23,7 +24,6 @@ class Maker(Agent):
         Maximum price allowed.
     eq : bool
         Allow the bid price to be equal to the ask price.
-        Not used if `action_space` is given.
     prices : np.ndarray
         Set of possible prices.
     action_space : np.ndarray
@@ -37,7 +37,7 @@ class Maker(Agent):
         and additional information (e.g., the probability of selection).
     """
 
-    is_informed = False
+    type: AgentType = AgentType.ABSTRACT
 
 
     def __init__(
@@ -123,7 +123,7 @@ class Maker(Agent):
         Convert an array of prices to their corresponding indices based on the price list.
 
         This method takes a NumPy array of prices and maps each action to an index based on
-        its position in the predefined price list.
+        its position in the price list of this agent.
 
         Parameters:
         -----------
