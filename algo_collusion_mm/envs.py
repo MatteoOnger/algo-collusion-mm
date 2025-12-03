@@ -67,10 +67,8 @@ class CGMEnv(ptz.AECEnv):
         Trader selected for the current round.
     agents : list of Agent
         Agents active in the current round (makers + selected trader).
-    agent_names : list of str
-        Names of active agents.
-    agent_selection : str
-        Name of the agent whose turn it is to act.
+    agent_selection : Agent
+        Agent whose turn it is to act.
     ask_prices : np.ndarray
         Ask prices quoted by each maker.
     bid_prices : np.ndarray
@@ -207,10 +205,8 @@ class CGMEnv(ptz.AECEnv):
         """Currently selected trader."""
         self.agents: List[Agent]
         """Agents active in the current round."""
-        self.agent_names: List[str]
-        """Names of agents active in the current round."""
-        self.agent_selection: str
-        """Name of the agent whose turn it is to act."""
+        self.agent_selection: Agent
+        """Agent whose turn it is to act."""
 
         self.ask_prices: np.ndarray
         """Ask prices quoted by each market maker."""
@@ -501,9 +497,8 @@ class CGMEnv(ptz.AECEnv):
 
         self.trader = self._np_random.choice(self.traders)
         self.agents = self.makers + [self.trader]
-        self.agent_names = [agent.name for agent in self.agents]
 
-        self._agent_selector = AgentSelector(self.agent_names)
+        self._agent_selector = AgentSelector(self.agents)
         self.agent_selection = self._agent_selector.next()
 
         self.ask_prices = np.zeros(self.n_makers, dtype=np.float64)
@@ -564,17 +559,16 @@ class CGMEnv(ptz.AECEnv):
         as NumPy arrays with a single float entry (e.g., np.array([0.8])) — both 
         formats are accepted.
         """
-        curr_agent_name = self.agent_selection
-        curr_agent_idx = self.agent_name_mapping[curr_agent_name]
-        curr_agent = self.possible_agents[curr_agent_idx]
+        curr_agent = self.agent_selection
+        curr_agent_idx = self._get_agent_idx(curr_agent)
         
-        action, ok = self._assert_and_format_action(curr_agent_name, action)
+        action, ok = self._assert_and_format_action(curr_agent.name, action)
 
         # Update state given current action
         if self.round >= self.n_rounds:
             raise ValueError('Maximum number of rounds reached')
         if not ok:
-            raise ValueError(f'Action {action} is not valid for agent {curr_agent_name}')
+            raise ValueError(f'Action {action} is not valid for agent {curr_agent.name}')
 
         if curr_agent.type.is_maker():
             self.ask_prices[curr_agent_idx] = action['ask_price']
@@ -609,7 +603,6 @@ class CGMEnv(ptz.AECEnv):
 
             self.trader = self._np_random.choice(self.traders)
             self.agents = self.makers + [self.trader] if self.round < self.n_rounds else []
-            self.agent_names = [agent.name for agent in self.agents] if self.round < self.n_rounds else []
 
             self.terminations = {agent.name: not agent in self.agents for agent in self.possible_agents}
             self.truncations = {agent.name: self.round >= self.n_rounds for agent in self.possible_agents}
@@ -846,7 +839,7 @@ class CGMEnv(ptz.AECEnv):
     def __str__(self) -> str:
         s = f'round {self.round}/{self.n_rounds}:\n' + \
             f' - true value -> {self.true_value}\n' + \
-            f' - curr. agent -> {self.agent_selection}\n' + \
+            f' - curr. agent -> {self.agent_selection.name}\n' + \
             f' - min ask price -> {self.min_ask_price}\n' + \
             f' - max bid price -> {self.max_bid_price}\n' + \
             f' - trader action -> {self.trader_op}\n' + \
