@@ -73,6 +73,7 @@ class MakerIQL(Maker):
         epsilon_init: float = 0.0,
         epsilon_decay_rate: float = 0.0,
         q_init: float|np.ndarray = 0.0,
+        action_values_attr: str = 'Q',
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -104,6 +105,8 @@ class MakerIQL(Maker):
             - If an integer, all entries in the Q-table are initialized to this value.
             - If an array-like object, it must have the same shape as the Q-table, and each entry
             will be used to initialize the corresponding Q-value.
+        action_values_attr : str, default='probs'
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -124,7 +127,7 @@ class MakerIQL(Maker):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+        super().__init__(action_values_attr, ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.n_agents = n_agents
         """Number of agents."""

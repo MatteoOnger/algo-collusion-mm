@@ -53,6 +53,7 @@ class MakerM3(Maker):
         self,
         epsilon: float,
         scale_rewards: Callable[[float], float] = lambda r: r,
+        action_values_attr: str = 'probs',
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -70,6 +71,8 @@ class MakerM3(Maker):
             Exploration parameter of the internal Exp3 sub-agents.
         scale_rewards : callable[[float], float], default=lambda r: r
             Function to scale raw rewards into a normalized range suitable for Exp3.
+        action_values_attr : str, default='probs'
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -90,13 +93,14 @@ class MakerM3(Maker):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+        super().__init__(action_values_attr, ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
         self.epsilon = epsilon
         self.scale_rewards = scale_rewards
 
         self._isswapped = None
         self._subagents = [MakerM3.EXP3(self, len(self.prices), self.epsilon) for _ in range(2)]
         return
+    
     
     @property
     def probs(self) -> np.ndarray:

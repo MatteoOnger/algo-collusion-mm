@@ -42,6 +42,7 @@ class Maker(Agent):
 
     def __init__(
         self,
+        action_values_attr: str,
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -55,6 +56,8 @@ class Maker(Agent):
         """
         Parameters
         ----------
+        action_values_attr : str
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -81,7 +84,9 @@ class Maker(Agent):
             If both `prices` and `action_space` are provided.
         """
         super().__init__(name, seed)
-        
+
+        self.action_values_attr = action_values_attr
+        """Name of the property that provides the action value representation."""
         self.ticksize = ticksize
         """Minimum increment for prices."""
         self.low = low
@@ -116,6 +121,23 @@ class Maker(Agent):
     @property
     def action_space(self) -> np.ndarray:
         return self._action_space
+
+
+    @property
+    def action_values(self) -> np.ndarray:
+        """
+        Return a numerical representation of the agent's evaluation of each action.
+
+        The specific representation is determined by `action_values_attr`, which must match
+        the name of a property implemented by the subclass.
+        """
+        attr = getattr(self, self.action_values_attr, None)
+
+        if attr is None:
+            raise ValueError(
+                f'{type(self).__name__} does not define an action representation named {self.action_values_attr}'
+            )
+        return attr
 
 
     def price_to_index(self, prices: np.ndarray) -> np.ndarray:

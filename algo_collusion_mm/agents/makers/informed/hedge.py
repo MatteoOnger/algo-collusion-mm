@@ -49,6 +49,7 @@ class MakerHedge(Maker):
         self,
         epsilon: float,
         scale_rewards: Callable[[float], float] = lambda r: r,
+        action_values_attr: str = 'probs',
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -68,6 +69,8 @@ class MakerHedge(Maker):
             Function to scale raw rewards into a normalized range suitable for Hedge.
             For example, to scale rewards into [0, 1], use a function like:
             `lambda r: (r - min_r) / (max_r - min_r)`.
+        action_values_attr : str, default='probs'
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -88,7 +91,7 @@ class MakerHedge(Maker):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+        super().__init__(action_values_attr, ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.epsilon = epsilon
         """Exploration parameter."""
