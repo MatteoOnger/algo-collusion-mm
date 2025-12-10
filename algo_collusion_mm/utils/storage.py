@@ -2,12 +2,25 @@
 """
 import copy
 import json
+import numpy as np
 import os
 import pickle
 
 from datetime import datetime
 from matplotlib.figure import Figure
-from typing import Any, List, Dict
+from typing import Any, Dict, List
+
+
+
+class CustomEncoder(json.JSONEncoder):
+    """
+    JSON encoder that adds support for NumPy arrays.
+    """
+    
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return str(obj).replace('\n', ',')
+        return super().default(obj)
 
 
 
@@ -185,7 +198,7 @@ class ExperimentStorage:
             elif isinstance(info, dict):
                 file_path = os.path.join(exp_dir, 'INFO.json')
                 with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(info, f, indent=4, ensure_ascii=False)
+                    json.dump(info, f, indent=4, ensure_ascii=False, cls=CustomEncoder)
             else:
                 raise TypeError('`info` must be either a string or a dict (JSON)')
         return exp_dir
