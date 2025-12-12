@@ -9,7 +9,7 @@ from ..maker import Maker
 
 
 
-class MakerEXP3(Maker):
+class MakerExp3(Maker):
     """
     Market maker for the GM environment based on the Exp3 algorithm.
 
