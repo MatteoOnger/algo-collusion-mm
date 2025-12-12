@@ -45,9 +45,9 @@ class CGMEnv(ptz.AECEnv):
         Number of decimal places used when rounding rewards.
     info_level : {'full', 'partial'}
         Defines what information informed makers receive:
-        - ``'full'``: counterfactual rewards under alternative actions,
+        - `'full'`: counterfactual rewards under alternative actions,
           while the trader is allowed to react accordingly.
-        - ``'partial'``: counterfactual rewards assuming the trader's
+        - `'partial'`: counterfactual rewards assuming the trader's
           realized action remains fixed.
     render_mode : {'ascii', 'human'}
         Rendering mode.
