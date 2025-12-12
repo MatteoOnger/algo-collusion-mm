@@ -9,7 +9,7 @@ from ..uninformed.mlql import MakerMLQL
 
 
 
-class MakerInformedMLQL(MakerMLQL):
+class MakerIMLQL(MakerMLQL):
     """
     Market maker for the GM environment based on an informed memoryless Q-learning approach.
 
