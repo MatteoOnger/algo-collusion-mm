@@ -167,7 +167,8 @@ def _multiple_runs(
 
     # Replace stings with lambdas
     for i in range(n_makers):
-        agents_params['maker'][i]['params']['scale_rewards'] = eval(agents_params['maker'][i]['params']['scale_rewards'])
+        if 'scale_rewards' in  agents_params['maker'][i]['params']:
+            agents_params['maker'][i]['params']['scale_rewards'] = eval(agents_params['maker'][i]['params']['scale_rewards'])
 
     # To compute online statistics
     stats_cci = OnlineVectorStats((n_makers, n_windows))
@@ -200,6 +201,8 @@ def _multiple_runs(
         ) for i in range(n_traders)
     ]
     agents: Dict[str, Agent] = {agent.name: agent for agent in makers + traders}
+
+    print(makers[0].scheduler(1, 2, 3))
 
     # Create env
     env = CGMEnv(
