@@ -171,7 +171,7 @@ class MakerM3(Maker):
             return
 
         rewards = info['rewards']
-        operations = info['op_done']
+        operations = info['trader_op']
 
         if self._isswapped:
             self.last_action = self.last_action[::-1]

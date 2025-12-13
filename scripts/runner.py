@@ -202,8 +202,6 @@ def _multiple_runs(
     ]
     agents: Dict[str, Agent] = {agent.name: agent for agent in makers + traders}
 
-    print(makers[0].scheduler(1, 2, 3))
-
     # Create env
     env = CGMEnv(
         generate_vt = eval(generate_vt),
