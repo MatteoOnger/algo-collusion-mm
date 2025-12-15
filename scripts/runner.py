@@ -336,7 +336,7 @@ def _multiple_runs(
         stats_rdc = stats_rdc,
         stats_actions_freq = stats_action_freq,
         stats_joint_actions_freq = stats_joint_action_freq,
-        stats_belief = stats_action_values,
+        stats_action_values = stats_action_values,
         title = f'{title} - Makers Statistics Summary Plot - Experiment:{run_id + 1}'
     )
     saver.save_figures({f'PLOT': fig})
@@ -532,7 +532,8 @@ def run_experiment_suite(
     for i, results in enumerate(results_list):
         n_makers = params[i]['env']['n_makers']
         action_space = params[i]['agent']['maker'][0]['params']['action_space']
-        
+        action_values_attrs = [params[i]['agent']['maker'][j]['params'].get('action_values_attr', 'default') for j in range(n_makers)]
+
         stats_cci, _, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values = results
         
         min_cci, mean_cci, max_cci = stats_cci.get_min(), stats_cci.get_mean(), stats_cci.get_max()
@@ -549,6 +550,8 @@ def run_experiment_suite(
         mean_action_values = stats_action_values.get_mean()
         best_action_idx = np.argmax(mean_action_values, axis=1)
 
+        action_values_attr = action_values_attrs[0] if len(set(action_values_attrs)) == 1 else "Heterogeneous values"
+
         saver.print_and_save(
             f'{(i+1):03} {'*' if (mean_cci[:, -1] >= 0.45).any() else ' '} - Last windows ->\n'
             f' - [CCI] Average: {np.round(mean_cci[:, -1], 4)}\n'
@@ -560,7 +563,7 @@ def run_experiment_suite(
             f' - [JOINT ACTION] Most common: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}\n'
             f' - [JOINT ACTION] Relative frequency: {np.round(mean_joint_action_freq[most_common_joint_action_idx], 4)}\n'
             f' - [ACTION VALUES] Best action: {str(action_space[best_action_idx]).replace('\n', '')}\n'
-            f' - [ACTION VALUES] Probability: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}',
+            f' - [ACTION VALUES] {action_values_attr.capitalize()}: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}',
         )
     
     # Plot results
