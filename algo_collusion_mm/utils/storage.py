@@ -4,7 +4,7 @@ import copy
 import json
 import numpy as np
 import os
-import pickle
+import dill
 
 from datetime import datetime
 from matplotlib.figure import Figure
@@ -92,7 +92,7 @@ class ExperimentStorage:
                 name = file_name.replace('.pkl', '')
                 file_path = os.path.join(exp_dir, file_name)
                 with open(file_path, 'rb') as f:
-                    loaded[name] = pickle.load(f)
+                    loaded[name] = dill.load(f)
         return loaded
 
 
@@ -135,7 +135,7 @@ class ExperimentStorage:
         Save a list of Python objects, a figure, and metadata 
         (string or JSON) into a newly created episode folder.
 
-        Each object is serialized with pickle, figures are saved as PNG, 
+        Each object is serialized with dill, figures are saved as PNG, 
         and info is stored as a text or JSON file.
 
         Parameters
@@ -180,16 +180,15 @@ class ExperimentStorage:
         if objects is not None:
             for obj in objects:
                 obj_copy = copy.deepcopy(obj)
-
-                for attr, value in obj_copy.__dict__.items():
-                    if callable(value) and getattr(value, '__name__', '') == '<lambda>':
-                        setattr(obj_copy, attr, None)
+                # for attr, value in obj_copy.__dict__.items():
+                #     if (callable(value) and getattr(value, '__name__', '') == '<lambda>') or attr in ['makers', 'traders']:
+                #         setattr(obj_copy, attr, None)
 
                 file_name = getattr(obj_copy, 'name', str(id(obj_copy)))
                 file_path = os.path.join(exp_dir, f'{file_name}.pkl')
 
                 with open(file_path, 'wb') as f:
-                    pickle.dump(obj_copy, f)
+                    dill.dump(obj_copy, f)
         
         # Save figure
         if figure is not None:
@@ -306,7 +305,7 @@ class ExperimentStorage:
         for name, obj in objects.items():
             file_path = os.path.join(self.base_path, f'{name}.pkl')
             with open(file_path, 'wb') as f:
-                pickle.dump(obj, f)
+                dill.dump(obj, f)
         return
 
 

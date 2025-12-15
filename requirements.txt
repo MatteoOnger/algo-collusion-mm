@@ -4,6 +4,7 @@
 # python>=3.12
 
 # Conda packages translated to pip
+dill
 matplotlib
 numpy
 ipykernel
