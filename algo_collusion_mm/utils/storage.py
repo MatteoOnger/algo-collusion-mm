@@ -179,16 +179,10 @@ class ExperimentStorage:
         # Save objects
         if objects is not None:
             for obj in objects:
-                obj_copy = copy.deepcopy(obj)
-                # for attr, value in obj_copy.__dict__.items():
-                #     if (callable(value) and getattr(value, '__name__', '') == '<lambda>') or attr in ['makers', 'traders']:
-                #         setattr(obj_copy, attr, None)
-
-                file_name = getattr(obj_copy, 'name', str(id(obj_copy)))
+                file_name = getattr(obj, 'name', str(id(obj)))
                 file_path = os.path.join(exp_dir, f'{file_name}.pkl')
-
                 with open(file_path, 'wb') as f:
-                    dill.dump(obj_copy, f)
+                    dill.dump(obj, f)
         
         # Save figure
         if figure is not None:
