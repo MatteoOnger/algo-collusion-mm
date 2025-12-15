@@ -88,8 +88,8 @@ class ExperimentStorage:
         """
         loaded = {}
         for file_name in os.listdir(exp_dir):
-            if file_name.endswith('.pkl'):
-                name = file_name.replace('.pkl', '')
+            if file_name.endswith('.dill') or file_name.endswith('.pkl'):
+                name = file_name.replace('.dill', '')
                 file_path = os.path.join(exp_dir, file_name)
                 with open(file_path, 'rb') as f:
                     loaded[name] = dill.load(f)
@@ -167,8 +167,6 @@ class ExperimentStorage:
         Notes
         -----
         - Each call creates a unique episode directory.
-        - Objects containing non-pickleable elements (e.g., lambdas, open files,
-          locally defined functions) will have those attributes replaced with `None` before serialization.
         - This method overwrites files if names already exist within the new folder.
         """
         if self.base_path is None:
@@ -180,7 +178,7 @@ class ExperimentStorage:
         if objects is not None:
             for obj in objects:
                 file_name = getattr(obj, 'name', str(id(obj)))
-                file_path = os.path.join(exp_dir, f'{file_name}.pkl')
+                file_path = os.path.join(exp_dir, f'{file_name}.dill')
                 with open(file_path, 'wb') as f:
                     dill.dump(obj, f)
         
@@ -273,7 +271,7 @@ class ExperimentStorage:
     
     def save_objects(self, objects: Dict[str, Any]) -> None:
         """
-        Save a dictionary of objects to pickle files.
+        Save a dictionary of objects to dill files.
 
         Parameters
         ----------
@@ -288,16 +286,13 @@ class ExperimentStorage:
 
         Notes
         -----
-        - Each object is saved as '<key>.pkl' in the specified `base_path`.
-        - Objects containing elements that cannot be pickled (e.g., lambda functions,
-          open file handles, or locally defined functions) will cause a `PicklingError`.
-
+        - Each object is saved as '<key>.dill' in the specified `base_path`.
         """
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
 
         for name, obj in objects.items():
-            file_path = os.path.join(self.base_path, f'{name}.pkl')
+            file_path = os.path.join(self.base_path, f'{name}.dill')
             with open(file_path, 'wb') as f:
                 dill.dump(obj, f)
         return
