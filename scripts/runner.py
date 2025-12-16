@@ -153,7 +153,7 @@ def _multiple_runs(
         - (OnlineVectorStats) Action frequencies;
         - (OnlineVectorStats) Joint action frequencies;
         - (OnlineVectorStats) Action values.
-        - (bool) True if the average strategy profile is a CCE.
+        - (bool) True if the average strategy is a CCE.
         - (bool) True if the average strategy is a NE.
 
     Notes
@@ -350,15 +350,18 @@ def _multiple_runs(
 
     # Save and print results
     exp_rwd = stats_cci.get_mean()[:, -1] * (coll_reward/n_makers - nash_reward/n_makers) + nash_reward/n_makers
+    
     action_spaces = np.repeat(makers[0].action_space[None, :], repeats=n_makers, axis=0)
+    prod_stats_action_freq = reduce(np.multiply.outer, stats_action_freq.get_mean()[:, 1, :])
 
     _, rewards = gtu.compute_joint_actions_and_rewards(action_spaces, true_value=0.5, tie_breaker=traders[0].tie_breaker)
-    is_cce = gtu.is_cce(rewards, stats_joint_action_freq.get_mean()[1], strict=False, fast=True, verbose=False)
-    is_ne = gtu.is_ne(rewards,  stats_action_freq.get_mean()[:, 1, :], strict=False, fast=True, verbose=False)
+    jaf_is_cce = gtu.is_cce(rewards, stats_joint_action_freq.get_mean()[1], strict=False, fast=True, verbose=False)
+    af_is_cce = gtu.is_cce(rewards, prod_stats_action_freq, strict=False, fast=True, verbose=False)
+    af_is_ne = gtu.is_ne(rewards,  stats_action_freq.get_mean()[:, 1, :], strict=False, fast=True, verbose=False)
 
-    is_indip = np.isclose(
+    jaf_is_indip = np.isclose(
         stats_joint_action_freq.get_mean()[1],
-        reduce(np.multiply.outer, stats_action_freq.get_mean()[:, 1, :]),
+        prod_stats_action_freq,
         atol = 1e-05
     ).all()
 
@@ -375,15 +378,16 @@ def _multiple_runs(
         f' - [SORTED CCI] Standard deviation: {np.round(stats_sorted_cci.get_std(sample=False)[:, -1], 4)}\n'
         f' - [RDC] Average: {np.round(stats_rdc.get_mean()[:, -1], 4)}\n'
         f' - [RWD] Expected: {np.round(exp_rwd, 4)}\n'
-        f' - [CCE] Is an equilibrium: {is_cce}\n'
-        f' - [NE] Is an equilibrium: {is_ne}\n'
-        f' - [NE] Is independent: {is_indip}\n' 
+        f' - [JAF] Is independent: {jaf_is_indip}\n'
+        f' - [JAF] Is a CCE: {jaf_is_cce}\n'
+        f' - [AF] Is a CCE: {af_is_cce}\n'
+        f' - [AF] Is a NE: {af_is_ne}\n'
         f'- Global:\n'
         f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
         f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
         silent = True
     )
-    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, is_cce, is_ne
+    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, af_is_cce, af_is_ne
 
 
 def _worker(
