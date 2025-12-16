@@ -6,8 +6,10 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from datetime import datetime
+from functools import reduce
 from typing import Any, Callable, Dict, List, Tuple, Union
 
+import algo_collusion_mm.utils.gtu as gtu
 import algo_collusion_mm.utils.plots as plots
 
 from algo_collusion_mm.agents import Agent, Maker, Trader
@@ -105,7 +107,7 @@ def _multiple_runs(
     n_rounds: int = 10_000,
     n_windows: int = 100,
     run_id: int = -1
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, bool, bool]:
     """
     Execute multiple training episodes for a single experiment configuration
     and collect statistics over all episodes.
@@ -143,14 +145,16 @@ def _multiple_runs(
 
     Returns
     -------
-    : tuple of OnlineVectorStats
+    : tuple of OnlineVectorStats and bool
         A tuple of six OnlineVectorStats objects containing summary statistics for:
-        - CCI values;
-        - Sorted CCI values;
-        - RDC values;
-        - Action frequencies;
-        - Joint action frequencies;
-        - Action values.
+        - (OnlineVectorStats) CCI values;
+        - (OnlineVectorStats) Sorted CCI values;
+        - (OnlineVectorStats) RDC values;
+        - (OnlineVectorStats) Action frequencies;
+        - (OnlineVectorStats) Joint action frequencies;
+        - (OnlineVectorStats) Action values.
+        - (bool) True if the average strategy profile is a CCE.
+        - (bool) True if the average strategy is a NE.
 
     Notes
     -----
@@ -318,7 +322,10 @@ def _multiple_runs(
 
         # Save and print results
         dir = saver.save_episode(info=info)
-        saver.print_and_save(f'{(i+1):03} {'*' if (cci[:, -1] >= 0.45).any() else ' '} -> CCI:{info['cci'][n_windows]}'.ljust(60) + f' ({dir})', silent=True)
+        saver.print_and_save(
+            f'{(i+1):03} {'*' if (cci[:, -1] >= 0.45).any() else ' '} -> CCI:{info['cci'][n_windows]}'.ljust(60) + f' ({dir})',
+            silent = True
+        )
     
     end_time = time.time()
     execution_time = end_time - start_time
@@ -343,6 +350,17 @@ def _multiple_runs(
 
     # Save and print results
     exp_rwd = stats_cci.get_mean()[:, -1] * (coll_reward/n_makers - nash_reward/n_makers) + nash_reward/n_makers
+    action_spaces = np.repeat(makers[0].action_space[None, :], repeats=n_makers, axis=0)
+
+    _, rewards = gtu.compute_joint_actions_and_rewards(action_spaces, true_value=0.5, tie_breaker=traders[0].tie_breaker)
+    is_cce = gtu.is_cce(rewards, stats_joint_action_freq.get_mean()[1], strict=False, fast=True, verbose=False)
+    is_ne = gtu.is_ne(rewards,  stats_action_freq.get_mean()[:, 1, :], strict=False, fast=True, verbose=True)
+
+    is_indip = np.isclose(
+        stats_joint_action_freq.get_mean()[1],
+        reduce(np.multiply.outer, stats_action_freq.get_mean()[:, 1, :]),
+        atol = 1e-05
+    ).all()
 
     saver.print_and_save(
         f'Results:\n'
@@ -356,19 +374,22 @@ def _multiple_runs(
         f' - [SORTED CCI] Maximum: {np.round(stats_sorted_cci.get_max()[:, -1], 4)}\n'
         f' - [SORTED CCI] Standard deviation: {np.round(stats_sorted_cci.get_std(sample=False)[:, -1], 4)}\n'
         f' - [RDC] Average: {np.round(stats_rdc.get_mean()[:, -1], 4)}\n'
-        f' - [RWD] Expected: {np.round(exp_rwd), 4}\n'
+        f' - [RWD] Expected: {np.round(exp_rwd, 4)}\n'
+        f' - [CCE] Is an equilibrium: {is_cce}\n'
+        f' - [NE] Is an equilibrium: {is_ne}\n'
+        f' - [NE] Is independent: {is_indip}\n' 
         f'- Global:\n'
         f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
         f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
         silent = True
     )
-    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values
+    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, is_cce, is_ne
 
 
 def _worker(
     run_id: int,
     params: List[Dict[str, Any]],
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, bool, bool]:
     """
     Worker function executed in a separate process for one experiment.
 
@@ -385,7 +406,7 @@ def _worker(
 
     Returns
     -------
-    : tuple of OnlineVectorStats
+    : tuple of OnlineVectorStats and bool
         The statistics tuple returned by `_multiple_runs`.
     """
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -534,8 +555,8 @@ def run_experiment_suite(
         action_space = params[i]['agent']['maker'][0]['params']['action_space']
         action_values_attrs = [params[i]['agent']['maker'][j]['params'].get('action_values_attr', 'default') for j in range(n_makers)]
 
-        stats_cci, _, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values = results
-        
+        stats_cci, _, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, is_cce, is_ne = results
+
         min_cci, mean_cci, max_cci = stats_cci.get_min(), stats_cci.get_mean(), stats_cci.get_max()
         std_cci = stats_cci.get_std(sample=False)
 
@@ -563,7 +584,9 @@ def run_experiment_suite(
             f' - [JOINT ACTION] Most common: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}\n'
             f' - [JOINT ACTION] Relative frequency: {np.round(mean_joint_action_freq[most_common_joint_action_idx], 4)}\n'
             f' - [ACTION VALUES] Best action: {str(action_space[best_action_idx]).replace('\n', '')}\n'
-            f' - [ACTION VALUES] {action_values_attr.capitalize()}: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}',
+            f' - [ACTION VALUES] {action_values_attr.capitalize()}: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}\n',
+            f' - [CCE] Is an equilibrium: {is_cce}\n'
+            f' - [NE] Is an equilibrium: {is_ne}'
         )
     
     # Plot results
