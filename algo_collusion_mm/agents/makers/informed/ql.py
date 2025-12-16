@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Dict
 
+from ....enums import AgentType
 from ..maker import Maker
 
 
@@ -39,7 +40,7 @@ class MakerIQL(Maker):
         Discount factor for future rewards, in the range [0, 1].
     epsilon_scheduler : str
         Name of the scheduler used to update the expolarion rate epsilon.
-        Must be one of the ones in `MakerMLQL._scheduler`.
+        Must be one of the ones in `MakerMLQL.scheduler`.
     epsilon_init : float
         Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
     epsilon_decay_rate : float
@@ -54,9 +55,9 @@ class MakerIQL(Maker):
         Index of the current state of the agent.
     """
 
-    is_informed = True
+    type: AgentType = AgentType.MAKER_I
 
-    _scheduler = {
+    scheduler = {
         'constant': lambda eps, dr, t: eps,
         'exponential': lambda eps, dr, t: eps * np.e**(-t * dr),
         'linear': lambda eps, dr, t: eps - (t * dr)
@@ -72,6 +73,7 @@ class MakerIQL(Maker):
         epsilon_init: float = 0.0,
         epsilon_decay_rate: float = 0.0,
         q_init: float|np.ndarray = 0.0,
+        action_values_attr: str = 'Q',
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -79,7 +81,7 @@ class MakerIQL(Maker):
         prices: np.ndarray|None = None,
         action_space: np.ndarray|None = None,
         decimal_places: int = 2,
-        name: str = 'maker_mlql',
+        name: str = 'mlql',
         seed: int|None = None
     ):
         """
@@ -103,6 +105,8 @@ class MakerIQL(Maker):
             - If an integer, all entries in the Q-table are initialized to this value.
             - If an array-like object, it must have the same shape as the Q-table, and each entry
             will be used to initialize the corresponding Q-value.
+        action_values_attr : str, default='probs'
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -123,7 +127,7 @@ class MakerIQL(Maker):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+        super().__init__(action_values_attr, ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.n_agents = n_agents
         """Number of agents."""
@@ -142,10 +146,10 @@ class MakerIQL(Maker):
 
         self._t = 0
         """Rounds done."""
-        self._scheduler = MakerIQL._scheduler[epsilon_scheduler]
+        self.scheduler = MakerIQL.scheduler[epsilon_scheduler]
         """Epsilon scheduler."""
 
-        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.epsilon = self.scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         """Current exploration rate."""
         self.Q = np.zeros(((self.n_arms ** self.n_agents) + 1, self.n_arms)) + self.q_init
         """Current Q-values."""
@@ -184,7 +188,7 @@ class MakerIQL(Maker):
             The reward assigned to the agent for the most recent action.
         info : dict of str
             A dictionary containing:
-            - 'actions' (np.ndarray): array of actions played by all creators in the round just ended.
+            - 'actions' (np.ndarray): array of actions played by all makers in the round just ended.
                 It represents the new state.
         """
         if self.last_action is None:
@@ -195,7 +199,7 @@ class MakerIQL(Maker):
             reward + self.gamma * np.max(self.Q[next_state_idx]) - self.Q[self.curr_state_idx, self.last_action]
         )
 
-        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.epsilon = self.scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         self.curr_state_idx = next_state_idx
         self.history.record_reward(reward)
         self.last_action = None
@@ -207,7 +211,7 @@ class MakerIQL(Maker):
         self._t = 0
         self.curr_state_idx = 0
         self.Q = np.zeros(self.n_arms) + self.q_init
-        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.epsilon = self.scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         return
     
 

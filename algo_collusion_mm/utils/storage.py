@@ -2,12 +2,32 @@
 """
 import copy
 import json
+import numpy as np
 import os
-import pickle
+import dill
 
 from datetime import datetime
 from matplotlib.figure import Figure
-from typing import Any, List, Dict
+from typing import Any, Dict, List
+
+
+
+class CustomEncoder(json.JSONEncoder):
+    """
+    JSON encoder with support for:
+    - NumPy arrays (converted to a compact string)
+    - Class instances (serialized as their class name)
+    - Class objects (also serialized as their class name)
+    """
+
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return str(obj).replace('\n', ',')
+        if isinstance(obj, type):
+            return obj.__name__
+        if hasattr(obj, "__class__") and obj.__class__.__module__ != "builtins":
+            return obj.__class__.__name__
+        return super().default(obj)
 
 
 
@@ -68,11 +88,11 @@ class ExperimentStorage:
         """
         loaded = {}
         for file_name in os.listdir(exp_dir):
-            if file_name.endswith('.pkl'):
-                name = file_name.replace('.pkl', '')
+            if file_name.endswith('.dill') or file_name.endswith('.pkl'):
+                name = file_name.replace('.dill', '')
                 file_path = os.path.join(exp_dir, file_name)
                 with open(file_path, 'rb') as f:
-                    loaded[name] = pickle.load(f)
+                    loaded[name] = dill.load(f)
         return loaded
 
 
@@ -115,7 +135,7 @@ class ExperimentStorage:
         Save a list of Python objects, a figure, and metadata 
         (string or JSON) into a newly created episode folder.
 
-        Each object is serialized with pickle, figures are saved as PNG, 
+        Each object is serialized with dill, figures are saved as PNG, 
         and info is stored as a text or JSON file.
 
         Parameters
@@ -147,8 +167,6 @@ class ExperimentStorage:
         Notes
         -----
         - Each call creates a unique episode directory.
-        - Objects containing non-pickleable elements (e.g., lambdas, open files,
-          locally defined functions) will have those attributes replaced with `None` before serialization.
         - This method overwrites files if names already exist within the new folder.
         """
         if self.base_path is None:
@@ -159,17 +177,10 @@ class ExperimentStorage:
         # Save objects
         if objects is not None:
             for obj in objects:
-                obj_copy = copy.deepcopy(obj)
-
-                for attr, value in obj_copy.__dict__.items():
-                    if callable(value) and getattr(value, '__name__', '') == '<lambda>':
-                        setattr(obj_copy, attr, None)
-
-                file_name = getattr(obj_copy, 'name', str(id(obj_copy)))
-                file_path = os.path.join(exp_dir, f'{file_name}.pkl')
-
+                file_name = getattr(obj, 'name', str(id(obj)))
+                file_path = os.path.join(exp_dir, f'{file_name}.dill')
                 with open(file_path, 'wb') as f:
-                    pickle.dump(obj_copy, f)
+                    dill.dump(obj, f)
         
         # Save figure
         if figure is not None:
@@ -185,7 +196,7 @@ class ExperimentStorage:
             elif isinstance(info, dict):
                 file_path = os.path.join(exp_dir, 'INFO.json')
                 with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(info, f, indent=4, ensure_ascii=False)
+                    json.dump(info, f, indent=4, ensure_ascii=False, cls=CustomEncoder)
             else:
                 raise TypeError('`info` must be either a string or a dict (JSON)')
         return exp_dir
@@ -220,10 +231,47 @@ class ExperimentStorage:
             fig.savefig(file_path, dpi=dpi, bbox_inches='tight')
         return
 
+
+    def save_jsons(self, json_objects: Dict[str, Dict], indent: int = 4) -> None:
+        """
+        Save a dictionary of JSON-serializable objects to JSON files.
+
+        Parameters
+        ----------
+        json_objects : dict of str to dict
+            Dictionary where keys are string names used as filenames (without extension)
+            and values are dictionary objects to be serialized as JSON.
+        indent : int, default=4
+            Number of indentation spaces used when writing the JSON files.
+
+        Raises
+        ------
+        ValueError
+            If `base_path` is None.
+        TypeError
+            If any value in `json_objects` is not a dictionary.
+
+        Notes
+        -----
+        - Each JSON object is saved as `<key>.json` in the specified `base_path`.
+        - A `CustomEncoder` will be used if available to serialize complex types.
+        """
+        if self.base_path is None:
+            raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
+
+        for name, data in json_objects.items():
+            if not isinstance(data, dict):
+                raise TypeError(f'Value for key {name} must be a dictionary.')
+
+            file_path = os.path.join(self.base_path, f'{name}.json')
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=indent, ensure_ascii=False, cls=CustomEncoder)
+        return
+
     
     def save_objects(self, objects: Dict[str, Any]) -> None:
         """
-        Save a dictionary of objects to pickle files.
+        Save a dictionary of objects to dill files.
 
         Parameters
         ----------
@@ -238,18 +286,15 @@ class ExperimentStorage:
 
         Notes
         -----
-        - Each object is saved as '<key>.pkl' in the specified `base_path`.
-        - Objects containing elements that cannot be pickled (e.g., lambda functions,
-          open file handles, or locally defined functions) will cause a `PicklingError`.
-
+        - Each object is saved as '<key>.dill' in the specified `base_path`.
         """
         if self.base_path is None:
             raise ValueError('Cannot save results because `base_path` is None. This saver can only be used for loading data.')
 
         for name, obj in objects.items():
-            file_path = os.path.join(self.base_path, f'{name}.pkl')
+            file_path = os.path.join(self.base_path, f'{name}.dill')
             with open(file_path, 'wb') as f:
-                pickle.dump(obj, f)
+                dill.dump(obj, f)
         return
 
 

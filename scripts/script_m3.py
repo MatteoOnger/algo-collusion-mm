@@ -1,548 +1,76 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import os
-import time
 
-import algo_collusion_mm.utils.plots as plots
-
-from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Tuple
-
-from algo_collusion_mm.agents.makers.informed.m3 import MakerM3
-from algo_collusion_mm.agents.traders.nopass import NoPassTrader
-from algo_collusion_mm.envs import GMEnv
-from algo_collusion_mm.utils.common import get_calvano_collusion_index, get_relative_deviation_competition
-from algo_collusion_mm.utils.stats import OnlineVectorStats
-from algo_collusion_mm.utils.storage import ExperimentStorage
-
-
-
-BASE_PATH = os.path.join('.', 'experiments', 'm3')
-FUNC_SCALE_REWARD = lambda r: r / 0.3
-FUNC_GENERATE_VT = lambda: 0.5
-
-
-
-def multiple_runs(
-    generate_vt: Callable[[], float],
-    scale_rewards: Callable[[float], float],
-    agents_fixed_params: Dict[str, Any],
-    agents_variable_params: Dict[str, Any],
-    n_makers_i: int,
-    n_traders: int,
-    action_space: np.ndarray,
-    nash_reward: float,
-    coll_reward: float,
-    saver_base_path: str,
-    decimal_places: int = 3,
-    n_episodes: int = 100,
-    n_rounds: int = 10_000,
-    n_windows: int = 100
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
-    """
-    Run multiple independent episodes in a Glosten-Milgrom market simulation.
-
-    This function performs several independent runs of a simulated Glosten-Milgrom
-    financial market populated by informed market makers based on M3 and traders.
-    In each run, all agents are reinitialized and reseeded before simulating a sequence
-    of trading rounds. Performance metrics such as the Calvano Collusion Index (CCI),
-    reward statistics, and action frequencies are computed over rolling time windows.
-
-    Aggregated statistics across all runs are tracked online and summarized
-    at the end of the experiment. Detailed results (including agent histories,
-    metadata, and plots) are saved to disk under the specified base directory.
-
-    Parameters
-    ----------
-    generate_vt : Callable[[], float]
-        Function that generates the true value of the traded asset for each round.
-    scale_rewards : Callable[[float], float]
-        Function used to scale or normalize agent rewards (e.g., for numerical stability).
-    agents_fixed_params : Dict[str, Any]
-        Dictionary containing hyperparameters shared across all agents of a given type
-        (e.g., learning rate, exploration rate).
-    agents_variable_params : Dict[str, Any]
-        Dictionary containing per-run or per-agent parameters
-        (e.g., random seed, tie-breaking rules).
-    n_makers_i : int
-        Number of informed market makers.
-    n_traders : int
-        Number of traders in the environment.
-    action_space : np.ndarray
-        Discrete set of possible (bid, ask) price pairs available to market makers.
-    nash_reward : float
-        Baseline per-agent reward under Nash equilibrium, used to normalize the CCI.
-    coll_reward : float
-        Baseline per-agent reward under full collusion, used to normalize the CCI.
-    saver_base_path : str
-        Base directory where experiment results, logs, and generated plots are saved.
-    decimal_places : int, default=3
-        Number of decimal places to which rewards are rounded.
-    n_episodes : int, default=100
-        Number of independent episode repetitions.
-    n_rounds : int, default=10_000
-        Number of trading rounds per episode.
-    n_windows : int, default=100
-        Number of rolling windows into which the total number of rounds is divided
-        for computing windowed statistics (e.g., the CCI).
-
-    Returns
-    -------
-    : tuple of OnlineVectorStats
-        A tuple of five `OnlineVectorStats` objects summarizing data across all runs:
-        - **stats_cci** : OnlineVectorStats  
-          Mean, variance, and extrema of the Calvano Collusion Index (CCI) across all runs.  
-          Shape: (n_makers_i, n_windows)
-        - **stats_sorted_cci** : OnlineVectorStats  
-          Same as above, but with makers sorted by their final-window CCI.
-        - **stats_rcd** : OnlineVectorStats  
-          Mean, variance, and extrema of the Relative Deviation from Competition (RDC) index across all runs.  
-          Shape: (n_makers_i, n_windows)
-        - **stats_action_freq** : OnlineVectorStats  
-          Frequency of each market maker's actions across runs and in the first and last window.
-          Shape: (n_makers_i, 2, len(action_space))
-        - **stats_joint_action_freq** : OnlineVectorStats  
-          Joint frequency of action combinations across all market makers in
-          the first and last window.
-          Shape: (2,) + (len(action_space),) * n_makers_i
-        - **stats_belief** : OnlineVectorStats  
-          Distribution of action-selection probabilities (beliefs) for each maker after the training.
-          Shape: (n_makers_i, len(action_space))
-
-    Notes
-    -----
-    - Each episode reinitializes agents, resets internal states, and reseeds all random 
-      number generators to ensure independence.
-    - The Calvano Collusion Index (CCI) measures the degree of collusive behavior,
-      where `CCI = 0` corresponds to Nash equilibrium and `CCI = 1` to full collusion.
-    - The RDC measures how much agents' realized rewards exceed (or fall below)
-      the competitive benchmark, defined by the Nash equilibrium reward.
-    - The function automatically saves per-agent reward histories, action frequencies,
-      and summary plots.
-    - Final summaries include per-window averages, minima, maxima, and standard deviations
-      of all tracked metrics.
-
-    See Also
-    --------
-    ExperimentStorage : Handles data persistence, logging, and metadata serialization.
-    OnlineVectorStats : Tracks online means and variances for high-dimensional data.
-    get_calvano_collusion_index : Computes the CCI given agents' reward histories.
-    get_relative_deviation_competition : Computes the RCD given agents' reward histories.
-    """
-    window_size = n_rounds // n_windows   # Window size
-
-    # To compute online statistics
-    stats_cci = OnlineVectorStats((n_makers_i, n_windows))
-    stats_sorted_cci = OnlineVectorStats((n_makers_i, n_windows))
-    stats_rdc = OnlineVectorStats((n_makers_i, n_windows))
-    stats_action_freq = OnlineVectorStats((n_makers_i, 2, len(action_space)))
-    stats_joint_action_freq = OnlineVectorStats((2,) + n_makers_i * (len(action_space),))
-    stats_belief = OnlineVectorStats((n_makers_i, len(action_space)))
-    stats_rwd = OnlineVectorStats(n_makers_i)
-
-    # To save experimental results
-    saver = ExperimentStorage(saver_base_path)
-
-    start_time = time.time()
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    saver.print_and_save(f'Started at {current_time}', silent=True)
-
-    # Create agents
-    agents = {
-        f'maker_i_{i}':MakerM3(
-            name = f'maker_i_{i}',
-            scale_rewards = scale_rewards,
-            **agents_fixed_params['maker'],
-            **agents_variable_params['maker']
-        ) for i in range(n_makers_i)
-    } | {
-        f'trader_{i}':NoPassTrader(
-            name = f'trader{i}',
-            **agents_fixed_params['trader'],
-            **agents_variable_params['trader']
-        ) for i in range(n_traders)
-    }
-
-    # Create env
-    env = GMEnv(
-        generate_vt = generate_vt,
-        n_rounds = n_rounds,
-        n_makers_u = 0,
-        n_makers_i = n_makers_i,
-        n_traders = n_traders,
-        agents_action_space = action_space,
-        decimal_places = decimal_places
-    )
-
-    for i in range(n_episodes):
-        if i % 10 == 0:
-            saver.print_and_save(f'Running episode {i} ...', silent=True)
-
-        # Reset env
-        _, info = env.reset()
-        # Reset the agent and change seed
-        for agent in agents.values():
-            agent.reset()
-            agent.update_seed()
-
-        # Play
-        for agent in env.agent_iter():
-            action = agents[agent].act(env.observe(agent))
-            _, rewards, _, _, infos = env.step(action)
-
-            if infos['round_finished']:
-                for a in env.possible_agents:
-                    agents[a].update(rewards[a], infos[a])
-
-        # Compute calvano collusion idex per window and agent
-        cci = get_calvano_collusion_index(
-            np.array([agents[name].history.get_rewards() for name in env.makers]),
-            nash_reward = nash_reward,
-            coll_reward = coll_reward,
-            window_size = window_size,
-            decimal_places = decimal_places
-        )
-
-        # Compute relative deviation from competition index per window and agent
-        rdc = get_relative_deviation_competition(
-            np.array([agents[name].history.get_rewards() for name in env.makers]),
-            nash_reward = nash_reward,
-            window_size = window_size,
-            decimal_places = decimal_places
-        )
-
-        # Collect info
-        info = {
-            'parmas' : {
-                'n_rounds' : n_rounds,
-                'window_size' : window_size,
-                'action_space' : str(action_space).replace('\n', ','),
-                'tie_breaker' : [agents[name].tie_breaker for name in env.traders],
-                'epsilon' : [agents[name].epsilon for name in env.makers],
-                'seed' : {name : agent._seed for name, agent in agents.items()},
-                'agent_type' : [agent.__class__.__name__ for agent in agents.values()],
-            },
-            'belief':{
-                n_windows : {name : str(agents[name].probs).replace('\n', '') for name in env.makers}
-            },
-            'freq_actions' : {
-                0 : {name : str(agents[name].history.compute_freqs(slice(0, window_size))).replace('\n', '') for name in env.makers},
-                n_windows : {name : str(agents[name].history.compute_freqs(slice(-window_size, None))).replace('\n', '') for name in env.makers},
-                'global' : {name : str(agents[name].history.compute_freqs()).replace('\n', '') for name in env.makers}
-            },
-            'most_common_action' : {
-                0 : {name : str(agents[name].history.compute_most_common(slice(0, window_size))) for name in env.makers},
-                n_windows : {name : str(agents[name].history.compute_most_common(slice(-window_size, None))) for name in env.makers},
-                'global' : {name : str(agents[name].history.compute_most_common()) for name in env.makers}
-            },
-            'cumulative_rewards' : {
-                0 : {name : round(float(agent.history.get_rewards(slice(0, window_size)).sum()), 3) for name, agent in agents.items()},
-                n_windows : {name : round(float(agent.history.get_rewards(slice(-window_size, None)).sum()), 3) for name, agent in agents.items()},
-                'global' : env.cumulative_rewards
-            },
-            'cci' : {
-                0  : {name : round(float(cci[idx, 0]), 3) for idx, name in enumerate(env.makers)},
-                n_windows  : {name : round(float(cci[idx, -1]), 3) for idx, name in enumerate(env.makers)},
-                'global' : {name : round(float(cci[idx, :].mean()), 3) for idx, name in enumerate(env.makers)},
-            },
-            'rdc' : {
-                0  : {name : round(float(rdc[idx, 0]), 3) for idx, name in enumerate(env.makers)},
-                n_windows  : {name : round(float(rdc[idx, -1]), 3) for idx, name in enumerate(env.makers)},
-                'global' : {name : round(float(rdc[idx, :].mean()), 3) for idx, name in enumerate(env.makers)},
-            }
-        }
-
-        # Sort agents according to the CCI of the last window
-        sorted_cci = cci[np.argsort(cci[:, -1])[::-1]]
-
-        # Joint actions frequency first and last window
-        matrix = np.zeros((2,) + n_makers_i * (len(action_space),))
-        
-        joint_actions = np.array([
-            agents[name].history.get_actions(slice(window_size), return_index=True) for name in env.makers
-        ]).T
-        unique_joint_actions, freqs = np.unique(joint_actions, return_counts=True, axis=0)
-        matrix[0][tuple(unique_joint_actions.T)] = freqs / window_size
-        
-        joint_actions = np.array([
-            agents[name].history.get_actions(slice(-window_size, None), return_index=True) for name in env.makers
-        ]).T
-        unique_joint_actions, freqs = np.unique(joint_actions, return_counts=True, axis=0)
-        matrix[1][tuple(unique_joint_actions.T)] = freqs / window_size
-
-        # Update statistics
-        stats_cci.update(cci)
-        stats_sorted_cci.update(sorted_cci)
-        stats_rdc.update(rdc)
-        stats_action_freq.update(np.array(
-            [[
-                agents[maker].history.compute_freqs(slice(window_size)),
-                agents[maker].history.compute_freqs(slice(-window_size, None))
-            ] for maker in env.makers]
-        ) / window_size)
-        stats_joint_action_freq.update(matrix)
-        stats_belief.update(np.array([agents[maker].probs for maker in env.makers]))
-        stats_rwd.update(np.array([env.cumulative_rewards[maker] for maker in env.makers]))
-
-        # Save and print results
-        dir = saver.save_episode(info=info)
-        saver.print_and_save(f'{(i+1):03} {'*' if (cci[:, -1] >= 0.45).any() else ' '} -> CCI:{info['cci'][n_windows]}'.ljust(60) + f' ({dir})', silent=True)
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    saver.print_and_save(f'Done at {current_time} | Execution time: {execution_time:.2f} seconds', silent=True)
-    
-    # Save plot
-    fig = plots.plot_all_stats(
-        window_size = window_size,
-        makers = [agents[maker] for maker in env.makers],
-        stats_cci = stats_cci,
-        stats_sorted_cci = stats_sorted_cci,
-        stats_rdc = stats_rdc,
-        stats_actions_freq = stats_action_freq,
-        stats_joint_actions_freq = stats_joint_action_freq,
-        stats_belief = stats_belief,
-        title = f'M3 - Makers Statistics Summary Plot - Epsilon:{list(agents.values())[0].epsilon}'
-    )
-    saver.save_figures({f'PLOT': fig})
-
-    # Save and print results
-    exp_rwd = stats_cci.get_mean()[:, -1] * (coll_reward/n_makers_i - nash_reward/n_makers_i) + nash_reward/n_makers_i
-
-    saver.print_and_save(
-        f'Results:\n'
-        f'- Last window:\n'
-        f' - [CCI] Average: {np.round(stats_cci.get_mean()[:, -1], 4)}\n'
-        f' - [CCI] Minimum: {np.round(stats_cci.get_min()[:, -1], 4)}\n'
-        f' - [CCI] Maximum: {np.round(stats_cci.get_max()[:, -1], 4)}\n'
-        f' - [CCI] Standard deviation: {np.round(stats_cci.get_std(sample=False)[:, -1], 4)}\n'
-        f' - [SORTED CCI] Average: {np.round(stats_sorted_cci.get_mean()[:, -1], 4)}\n'
-        f' - [SORTED CCI] Minimum: {np.round(stats_sorted_cci.get_min()[:, -1], 4)}\n'
-        f' - [SORTED CCI] Maximum: {np.round(stats_sorted_cci.get_max()[:, -1], 4)}\n'
-        f' - [SORTED CCI] Standard deviation: {np.round(stats_sorted_cci.get_std(sample=False)[:, -1], 4)}\n'
-        f' - [RDC] Average: {np.round(stats_rdc.get_mean()[:, -1], 4)}\n'
-        f' - [RWD] Expected: {np.round(exp_rwd), 4}\n'
-        f'- Global:\n'
-        f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
-        f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
-        silent = True
-    )
-    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_belief
-
-
-def worker(
-    run_id: int,
-    fixed_params: Dict[str, Any],
-    variable_params: List[Dict[str, Any]]
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats]:
-    """
-    Execute a single experiment configuration for use in parallelized Glosten-Milgrom simulations.
-
-    This worker function serves as a wrapper around `multiple_runs`, building a specific 
-    environment and agent configuration for a given `run_id`. It merges shared experiment 
-    settings (`fixed_params`) with per-run overrides (`variable_params[run_id]`), allowing 
-    for easy parameter sweeps (e.g., different exploration rates or random seeds).
-
-    It is typically executed within a `ProcessPoolExecutor` or similar parallel execution
-    framework to run multiple experiments concurrently.
-
-    Parameters
-    ----------
-    run_id : int
-        Index of the current run, used to select the corresponding element from `variable_params`.
-    fixed_params : Dict[str, Any]
-        Dictionary containing experiment-wide settings shared by all runs.
-        Expected keys:
-            - `'env'` : Environment configuration parameters.
-            - `'agent'` : Common agent hyperparameters (for both makers and traders).
-    variable_params : List[Dict[str, Any]]
-        List of dictionaries containing per-run configuration overrides.
-        Each entry may redefine environment parameters (under `'env'`) and/or agent parameters 
-        (under `'agent'`), such as `epsilon`, learning rate, or save paths.
-
-    Returns
-    -------
-    : tuple of OnlineVectorStats
-        A tuple of five `OnlineVectorStats` objects summarizing data across all runs:
-        - **stats_cci** : OnlineVectorStats  
-          Mean, variance, and extrema of the Calvano Collusion Index (CCI) across all runs.  
-          Shape: (n_makers_i, n_windows)
-        - **stats_sorted_cci** : OnlineVectorStats  
-          Same as above, but with makers sorted by their final-window CCI.
-        - The RDC measures how much agents' realized rewards exceed (or fall below)
-          the competitive benchmark, defined by the Nash equilibrium reward.
-        - **stats_action_freq** : OnlineVectorStats  
-          Frequency of each market maker's actions across runs and in the first and last window.
-          Shape: (n_makers_i, 2, len(action_space))
-        - **stats_joint_action_freq** : OnlineVectorStats  
-          Joint frequency of action combinations across all market makers in
-          the first and last window.
-          Shape: (2,) + (len(action_space),) * n_makers_i
-        - **stats_belief** : OnlineVectorStats  
-          Distribution of action-selection probabilities (beliefs) for each maker after the training.
-          Shape: (n_makers_i, len(action_space))
-
-    Notes
-    -----
-    - The function prints time-stamped start and completion messages for monitoring progress.
-    - Combines fixed and variable configurations using Python's dictionary unpacking:
-      `**fixed_params['env']`, `**variable_params[run_id]['env']`, etc.
-    - The core experiment logic and statistics computation are delegated to `multiple_runs`.
-    - Designed for use in distributed or parallelized experiment pipelines.
-    """
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f'[{now}] [Run {run_id}] Starting...', flush=True)
-
-    results = multiple_runs(
-        generate_vt = FUNC_GENERATE_VT,
-        scale_rewards = FUNC_SCALE_REWARD,
-        agents_fixed_params = fixed_params['agent'],
-        agents_variable_params = variable_params[run_id]['agent'],
-        **fixed_params['env'],
-        **variable_params[run_id]['env']
-    )
-
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f'[{now}] [Run {run_id}] Finished', flush=True)
-    return results
+from algo_collusion_mm.agents import NoPassTrader, MakerM3
+from runner import run_experiment_suite
 
 
 
 if __name__ == '__main__':
-    saver = ExperimentStorage(BASE_PATH)
-
-    max_workers = 7
-    n_parallel_runs = 99
-
-    start_time = time.time()
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    saver.print_and_save(f'Started at {current_time}')
-
-    n_makers_i = 2
-    r, n, k = 100, 10_000, 100
-    prices =  np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
+    n_episodes = 10
+    n_rounds = 1_000
+    prices = np.round(np.arange(0.0, 1.0 + 0.2, 0.2), 2)
     action_space = np.array([(ask, bid) for ask in prices for bid in prices])
 
-    x = 0.003
-    epsilons = np.round(np.concat([
-        x - np.arange(1,  8)[::-1] * 0.0005,
-        np.array([x]),
-        x + np.arange(1,  6) * 0.0005,
-        x + 0.0025 + np.arange(1, 11) * 0.0010,
-        x + 0.0125 + np.arange(1, 21) * 0.0050,
-        x + 0.1125 + np.arange(1, 41) * 0.0100,
-        x + 0.5125 + np.arange(1, 10) * 0.0500,
-        np.array([1., 5., 10., 50., 100., 500., 1000.]),
-    ]), 4)
+    epsilons = [0.001, 0.01, 0.1]
 
-    assert len(epsilons) == n_parallel_runs
-
-    # Experiment params
     fixed_params = {
         'env': {
-            'n_makers_i': n_makers_i,
+            'generate_vt': 'lambda: 0.5',
+            'info_level': 'full',
+            'n_arms': len(action_space),
+            'n_makers': 2,
             'n_traders': 1,
-            'action_space': action_space,
             'nash_reward': 0.1,
             'coll_reward': 0.5,
-            'decimal_places': 2,
-            'n_episodes': r,
-            'n_rounds': n,
-            'n_windows': k
+            'decimal_places': 3,
+            'n_episodes': n_episodes,
+            'n_rounds': n_rounds,
+            'n_windows': 100,
         },
         'agent': {
             'maker': {
-                'decimal_places': 2,
-                'action_space': action_space,
+                'meta': {
+                    'prefix': 'maker_i',
+                    'class': MakerM3
+                },
+                'params': {
+                    'action_space': action_space,
+                    'scale_rewards': 'lambda x: x / 0.3',
+                }
             },
             'trader': {
-                'tie_breaker': 'rand'
+                'meta':{
+                    'prefix': 'trader',
+                    'class': NoPassTrader,
+                },
+                'params': {
+                    'tie_breaker': 'rand'
+                }
             }
         }
     }
 
-    variable_params = [{
-        'env': {
-            'saver_base_path': os.path.join(BASE_PATH, f'experiment_{(i+1):03}'),
-        },
-        'agent': {
-            'maker': {
-                'epsilon': epsilons[i],
-            },
-            'trader': {
+    variable_params = [
+        {
+            'env': {},
+            'agent': {
+                'maker': {
+                    'meta': {},
+                    'params': {
+                        'epsilon': epsilons[i]
+                    }
+                },
+                'trader': {
+                    'meta':{},
+                    'params':{}
+                }
             }
         }
-    } for i in range(n_parallel_runs)]
+    for i in range(len(epsilons))]
 
-    # Parallel run
-    futures = list()
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(worker, run_id, fixed_params, variable_params) for run_id in range(n_parallel_runs)]
-    results_list = [f.result() for f in futures]
-
-    # Save results
-    saver.save_objects({'results_list': results_list})
-
-    # Print results
-    for i, results in enumerate(results_list):
-        stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_belief = results
-        
-        min_cci, mean_cci, max_cci = stats_cci.get_min(), stats_cci.get_mean(), stats_cci.get_max()
-        std_cci = stats_cci.get_std(sample=False)
-        
-        mean_sorted_cci = stats_sorted_cci.get_mean()
-        std_sorted_cci = stats_sorted_cci.get_std(sample=False)
-
-        mean_rdc = stats_rdc.get_mean()
-
-        mean_action_freq = stats_action_freq.get_mean()[:, 1, :]
-        most_common_action_idx = np.argmax(mean_action_freq, axis=1)
-
-        mean_joint_action_freq = stats_joint_action_freq.get_mean()[1]
-        most_common_joint_action_idx = np.unravel_index(np.argmax(mean_joint_action_freq), mean_joint_action_freq.shape)
-
-        mean_belief = stats_belief.get_mean()
-        best_action_idx = np.argmax(mean_belief, axis=1)
-
-        saver.print_and_save(
-            f'{(i+1):03} {'*' if (mean_cci[:, -1] >= 0.45).any() else ' '} - epsilon: {epsilons[i]} - Last windows ({n//k}) ->\n'
-            f' - [CCI] Average: {np.round(mean_cci[:, -1], 4)}\n'
-            f' - [CCI] Standard deviation: {np.round(std_cci[:, -1], 4)}\n'
-            f' - [CCI] Minimum and Maximum:{np.round(min_cci[:, -1], 4)}, {np.round(max_cci[:, -1], 4)}\n'
-            f' - [RDC] Average: {np.round(mean_rdc[:, -1], 4)}\n'
-            f' - [ACTION] Most common: {str(action_space[most_common_action_idx]).replace('\n', '')}\n'
-            f' - [ACTION] Relative frequency: {np.round(mean_action_freq[np.arange(n_makers_i), most_common_action_idx], 4)}\n'
-            f' - [JOINT ACTION] Most common: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}\n'
-            f' - [JOINT ACTION] Relative frequency: {np.round(mean_joint_action_freq[most_common_joint_action_idx], 4)}\n'
-            f' - [BELIEF] Best action: {str(action_space[best_action_idx]).replace('\n', '')}\n'
-            f' - [BELIEF] Probability: {np.round(mean_belief[np.arange(n_makers_i), best_action_idx], 4)}',
-        )
-    
-    # # Plot results
-    lw_min_cci = np.array([result[0].get_min()[:, -1] for result in results_list]).T
-    lw_max_cci = np.array([result[0].get_max()[:, -1] for result in results_list]).T
-    lw_mean_cci = np.array([result[0].get_mean()[:, -1] for result in results_list]).T
-    lw_std_cci = np.array([result[0].get_std(sample=False)[:, -1] for result in results_list]).T
-    
-    fig, axis = plt.subplots(figsize=(16, 6))
-    plots.plot_makers_cci(
-        xlabel = 'Experiment Index',
-        x = np.arange(len(epsilons)),
-        cci = lw_mean_cci,
-        std = lw_std_cci,
-        min = lw_min_cci,
-        max = lw_max_cci,
-        makers_name = [f'maker_i_{i}' for i in range(n_makers_i)],
-        title = 'M3 - Mean CCI wrt. Epsilons - Last Window',
-        ax = axis
+    run_experiment_suite(
+        fixed_params = fixed_params,
+        variable_params = variable_params,
+        base_path = os.path.join('experiments', 'm3')
     )
-    axis.axvline(11, ls='--', color='black', alpha=0.7)
-    plt.tight_layout()
-    saver.save_figures({'PLOT': fig})
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    saver.print_and_save(f'Done at {current_time} | Execution time: {execution_time:.2f} seconds')

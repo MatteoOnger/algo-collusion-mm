@@ -4,8 +4,8 @@ import numpy as np
 
 from typing import Dict, Literal
 
+from ...enums import AgentType, TraderAction
 from .trader import Trader
-from ...envs import GMEnv
 
 
 
@@ -28,17 +28,17 @@ class NoPassTrader(Trader):
         - 'sell': always prefer selling in case of tie.
         - 'rand': break ties randomly.
         - 'alt': alternate between buy and sell on each tie.
-    last_action : GMEnv.TraderAction or None
+    last_action : TraderAction or None
         Stores the last action taken (used for 'alt' tie-breaker).
     """
 
-    is_informed = False
+    type: AgentType = AgentType.TRADER
 
 
     def __init__(
         self,
         tie_breaker: Literal['buy', 'sell', 'rand', 'alt'] = 'rand',
-        name: str = 'no_pass_trader',
+        name: str = 'no_pass',
         seed: int|None = None
     ):
         """ 
@@ -50,7 +50,7 @@ class NoPassTrader(Trader):
             - 'sell': always choose to sell.
             - 'rand': choose randomly between buy and sell.
             - 'alt': alternate between buy and sell on each tie.
-        name : str, default='agent'
+        name : str, default='no_pass'
             Unique identifier for the agent.
         seed : int or None, default=None
             Seed for the internal random generator.
@@ -61,7 +61,7 @@ class NoPassTrader(Trader):
         self.last_action = None
         """Last chosen action."""
 
-        self._action_space = np.array([GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL])
+        self._action_space = np.array([TraderAction.BUY, TraderAction.SELL])
         return
 
 
@@ -70,7 +70,7 @@ class NoPassTrader(Trader):
         return self._action_space
 
 
-    def act(self, observation: Dict[str, float]) -> Dict[str, GMEnv.TraderAction]:
+    def act(self, observation: Dict[str, float]) -> Dict[str, TraderAction]:
         """
         Decide to BUY or SELL based on the current market observation.
 
@@ -93,16 +93,16 @@ class NoPassTrader(Trader):
 
         if np.isclose(true_value - min_ask, max_bid - true_value):
             if self.tie_breaker == 'rand' or (self.tie_breaker == 'alt' and self.last_action is None):
-                action = self._rng.choice([GMEnv.TraderAction.BUY, GMEnv.TraderAction.SELL])
-            elif self.tie_breaker == 'buy' or (self.tie_breaker == 'alt' and self.last_action == GMEnv.TraderAction.SELL):
-                action = GMEnv.TraderAction.BUY
+                action = self._rng.choice([TraderAction.BUY, TraderAction.SELL])
+            elif self.tie_breaker == 'buy' or (self.tie_breaker == 'alt' and self.last_action == TraderAction.SELL):
+                action = TraderAction.BUY
             else:
-                action = GMEnv.TraderAction.SELL
+                action = TraderAction.SELL
             self.last_action = action
         elif true_value - min_ask > max_bid - true_value:
-            action = GMEnv.TraderAction.BUY
+            action = TraderAction.BUY
         else:
-            action = GMEnv.TraderAction.SELL
+            action = TraderAction.SELL
         
         self.history.record_action(action.value)
         return {

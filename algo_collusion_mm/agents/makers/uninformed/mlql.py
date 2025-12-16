@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Dict
 
+from ....enums import AgentType
 from ..maker import Maker
 
 
@@ -27,7 +28,7 @@ class MakerMLQL(Maker):
         Discount factor for future rewards, in the range [0, 1].
     epsilon_scheduler : str
         Name of the scheduler used to update the expolarion rate epsilon.
-        Must be one of the ones in `MakerMLQL._scheduler`.
+        Must be one of the ones in `MakerMLQL.scheduler`.
     epsilon_init : float
         Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
     epsilon_decay_rate : float
@@ -40,9 +41,9 @@ class MakerMLQL(Maker):
         Current Q-value for each arm.
     """
 
-    is_informed = False
+    type: AgentType = AgentType.MAKER_U
 
-    _scheduler = {
+    scheduler = {
         'constant': lambda eps, dr, t: eps,
         'exponential': lambda eps, dr, t: eps * np.e**(-t * dr),
         'linear': lambda eps, dr, t: eps - (t * dr)
@@ -57,6 +58,7 @@ class MakerMLQL(Maker):
         epsilon_init: float = 0.0,
         epsilon_decay_rate: float = 0.0,
         q_init: float|np.ndarray = 0.0,
+        action_values_attr: str = 'Q',
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -64,7 +66,7 @@ class MakerMLQL(Maker):
         prices: np.ndarray|None = None,
         action_space: np.ndarray|None = None,
         decimal_places: int = 2,
-        name: str = 'maker_mlql',
+        name: str = 'mlql',
         seed: int|None = None
     ):
         """
@@ -76,7 +78,7 @@ class MakerMLQL(Maker):
             Discount factor for future rewards, in the range [0, 1].
         epsilon_scheduler : str, default='constant'
             Name of the scheduler used to update the expolarion rate epsilon.
-            Must be one of the ones in `MakerMLQL._scheduler`.
+            Must be one of the ones in `MakerMLQL.scheduler`.
         epsilon_init : float, default=0.0
             Initial exploration rate for the epsilon-greedy policy, in the range [0, 1].
         epsilon_decay_rate : float, default=0.0
@@ -86,6 +88,8 @@ class MakerMLQL(Maker):
             - If an integer, all entries in the Q-table are initialized to this value.
             - If an array-like object, it must have the same shape as the Q-table, and each entry
             will be used to initialize the corresponding Q-value.
+        action_values_attr : str, default='Q'
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -101,12 +105,12 @@ class MakerMLQL(Maker):
             All possible (ask_price, bid_price) pairs.
         decimal_places : int, default=2
             Number of decimal places to which rewards and prices are rounded.
-        name : str, default='maker'
+        name : str, default='mlql'
             Name assigned to the agent.
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+        super().__init__(action_values_attr, ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
 
         self.alpha = alpha
         """Learning rate."""
@@ -123,10 +127,10 @@ class MakerMLQL(Maker):
         
         self._t = 0
         """Rounds done."""
-        self._scheduler = MakerMLQL._scheduler[epsilon_scheduler]
+        self.scheduler = MakerMLQL.scheduler[epsilon_scheduler]
         """Epsilon scheduler."""
 
-        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.epsilon = self.scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         """Current exploration rate."""
         self.Q = np.zeros(self.n_arms) + self.q_init
         """Current Q-values."""
@@ -155,7 +159,7 @@ class MakerMLQL(Maker):
         if self.last_action is None:
             return
         
-        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.epsilon = self.scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         self.Q[self.last_action] += self.alpha * (reward + self.gamma * np.max(self.Q) - self.Q[self.last_action])
 
         self.history.record_reward(reward)
@@ -167,5 +171,5 @@ class MakerMLQL(Maker):
         super().reset()
         self._t = 0
         self.Q = np.zeros(self.n_arms) + self.q_init
-        self.epsilon = self._scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
+        self.epsilon = self.scheduler(self.epsilon_init, self.epsilon_decay_rate, self._t)
         return

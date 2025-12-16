@@ -4,6 +4,8 @@
 # python>=3.12
 
 # Conda packages translated to pip
+cvxpy
+dill
 matplotlib
 numpy
 ipykernel
@@ -12,6 +14,5 @@ ipywidgets
 seaborn
 
 # Packages originally under pip
-cvxpy
 pettingzoo
 gymnasium

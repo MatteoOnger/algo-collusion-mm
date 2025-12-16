@@ -5,6 +5,7 @@ import numpy as np
 from abc import abstractmethod
 from typing import Dict
 
+from ...enums import AgentType
 from ..agent import Agent
 
 
@@ -23,7 +24,6 @@ class Maker(Agent):
         Maximum price allowed.
     eq : bool
         Allow the bid price to be equal to the ask price.
-        Not used if `action_space` is given.
     prices : np.ndarray
         Set of possible prices.
     action_space : np.ndarray
@@ -37,11 +37,12 @@ class Maker(Agent):
         and additional information (e.g., the probability of selection).
     """
 
-    is_informed = False
+    type: AgentType = AgentType.ABSTRACT
 
 
     def __init__(
         self,
+        action_values_attr: str,
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -55,6 +56,8 @@ class Maker(Agent):
         """
         Parameters
         ----------
+        action_values_attr : str
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -81,7 +84,9 @@ class Maker(Agent):
             If both `prices` and `action_space` are provided.
         """
         super().__init__(name, seed)
-        
+
+        self.action_values_attr = action_values_attr
+        """Name of the property that provides the action value representation."""
         self.ticksize = ticksize
         """Minimum increment for prices."""
         self.low = low
@@ -118,12 +123,29 @@ class Maker(Agent):
         return self._action_space
 
 
+    @property
+    def action_values(self) -> np.ndarray:
+        """
+        Return a numerical representation of the agent's evaluation of each action.
+
+        The specific representation is determined by `action_values_attr`, which must match
+        the name of a property implemented by the subclass.
+        """
+        attr = getattr(self, self.action_values_attr, None)
+
+        if attr is None:
+            raise ValueError(
+                f'{type(self).__name__} does not define an action representation named {self.action_values_attr}'
+            )
+        return attr
+
+
     def price_to_index(self, prices: np.ndarray) -> np.ndarray:
         """
         Convert an array of prices to their corresponding indices based on the price list.
 
         This method takes a NumPy array of prices and maps each action to an index based on
-        its position in the predefined price list.
+        its position in the price list of this agent.
 
         Parameters:
         -----------

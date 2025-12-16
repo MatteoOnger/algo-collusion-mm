@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Callable, Dict
 
+from ....enums import AgentType
 from ..maker import Maker
 
 
@@ -46,12 +47,13 @@ class MakerM3(Maker):
     Market Making without Regret. arXiv preprint arXiv:2411.13993.
     """
 
-    is_informed = True
+    type: AgentType = AgentType.MAKER_I
 
     def __init__(
         self,
         epsilon: float,
         scale_rewards: Callable[[float], float] = lambda r: r,
+        action_values_attr: str = 'probs',
         ticksize: float = 0.2,
         low: float = 0.0,
         high: float = 1.0,
@@ -69,6 +71,8 @@ class MakerM3(Maker):
             Exploration parameter of the internal Exp3 sub-agents.
         scale_rewards : callable[[float], float], default=lambda r: r
             Function to scale raw rewards into a normalized range suitable for Exp3.
+        action_values_attr : str, default='probs'
+            Name of the property that provides the action value representation.
         ticksize : float, default=0.2
             Minimum increment for prices in the action space.
         low : float, default=0.0
@@ -89,13 +93,14 @@ class MakerM3(Maker):
         seed : int or None, default=None
             Seed for the internal random generator.
         """
-        super().__init__(ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
+        super().__init__(action_values_attr, ticksize, low, high, eq, prices, action_space, decimal_places, name, seed)
         self.epsilon = epsilon
         self.scale_rewards = scale_rewards
 
         self._isswapped = None
         self._subagents = [MakerM3.EXP3(self, len(self.prices), self.epsilon) for _ in range(2)]
         return
+    
     
     @property
     def probs(self) -> np.ndarray:
@@ -165,8 +170,8 @@ class MakerM3(Maker):
         if self.last_action is None:
             return
 
-        operation = info['op_done']
         rewards = info['rewards']
+        operations = info['trader_op']
 
         if self._isswapped:
             self.last_action = self.last_action[::-1]
@@ -174,10 +179,11 @@ class MakerM3(Maker):
         arm_idx = self.action_to_index(self.last_action)
         scaled_reward = self.scale_rewards(rewards[arm_idx])
 
-        if operation ==  'buy':
+        # operation: 0 = buy, 1 = sell
+        if operations[arm_idx] ==  0:
             self._subagents[0].update(scaled_reward)
             self._subagents[1].update(0.0)
-        elif operation ==  'sell':
+        elif operations[arm_idx] ==  1:
             self._subagents[0].update(0.0)
             self._subagents[1].update(scaled_reward)
 

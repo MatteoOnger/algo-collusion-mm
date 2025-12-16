@@ -35,7 +35,7 @@ def plot_all(
     nash_reward: float,
     coll_reward: float,
     makers: List[Maker],
-    makers_belief_name: List[str]|str,
+    makers_action_values_name: List[str]|str,
     cci: np.ndarray,
     annot: Literal['all', 'none', 'above_mean'] = 'above_mean',
     title: str = 'Makers Summary Plot'
@@ -47,7 +47,7 @@ def plot_all(
     - **Action histories** - plots showing the sequence of actions taken by each maker over time.
     - **Individual reward time series** - per-agent reward progression across rounds or windows.
     - **Absolute action frequency heatmaps** - visualizations of how often each action was chosen by each maker.
-    - **Final agents' beliefs** - representation of each maker's belief at the end of the simulation.
+    - **Final agents' action values** - representation of each maker's action values at the end of the simulation.
     - **Calvano Collusion Index (CCI) over time** - tracks the level of collusion or cooperation between agents.
     - **Joint action heatmaps** - shows joint action distributions in the first and last windows.
 
@@ -61,8 +61,8 @@ def plot_all(
         Reference reward level for full collusion, shown as a horizontal line in reward plots.
     makers : List[Maker]
         List of `Maker` objects representing the agents.
-    makers_belief_name : List[str] or str
-        List of names of the maker variable representing the belief of each agent.
+    makers_action_values_name : List[str] or str
+        List of names of the maker variable representing the action values of each agent.
     cci : np.ndarray
         Array of shape (n_agents, n_windows) containing the CCI values per agent.
     annot : {'all', 'none', 'above_mean'}, default='above_mean'
@@ -77,7 +77,7 @@ def plot_all(
     -------
     : matplotlib.figure.Figure
         The figure containing all generated subplots for makers' actions, rewards, frequencies,
-        beliefs, CCI and joint action heatmaps.
+        actio values, CCI and joint action heatmaps.
 
     Notes
     -----
@@ -85,11 +85,11 @@ def plot_all(
     """
     n_makers = len(makers)
     
-    if isinstance(makers_belief_name, str):
-        makers_belief_name = n_makers * [makers_belief_name]
+    if isinstance(makers_action_values_name, str):
+        makers_action_values_name = n_makers * [makers_action_values_name]
 
     # Determine how many plot rows we need
-    n_rows = 6  # actions, rewards, freq heatmap, CCI, belief, joint actions
+    n_rows = 6  # actions, rewards, freq heatmap, CCI, action values, joint actions
 
     fig = plt.figure(figsize=(8 * n_makers, 6 * n_rows)) 
     fig.suptitle(title, fontsize=20)
@@ -124,16 +124,16 @@ def plot_all(
         )
         ax_freq.set_aspect('equal', adjustable='box')
 
-        # Row 3: belief heatmap
-        ax_belief = fig.add_subplot(gs[3, i])
-        plot_maker_belief(
+        # Row 3: action values heatmap
+        ax_action_values = fig.add_subplot(gs[3, i])
+        plot_maker_action_values(
             maker = maker,
-            belief_name = makers_belief_name[i],
+            action_values_name = makers_action_values_name[i],
             annot = annot,
-            title = 'Final Belief',
-            ax = ax_belief
+            title = 'Final Action Values',
+            ax = ax_action_values
         )
-        ax_belief.set_aspect('equal', adjustable='box')
+        ax_action_values.set_aspect('equal', adjustable='box')
 
     # Row 4: collusion index
     ax_cci = fig.add_subplot(gs[4, :])
@@ -210,7 +210,7 @@ def plot_all_stats(
     stats_rdc: OnlineVectorStats|None = None,
     stats_actions_freq: OnlineVectorStats|None = None,
     stats_joint_actions_freq: OnlineVectorStats|None = None,
-    stats_belief: OnlineVectorStats|None = None,
+    stats_action_values: OnlineVectorStats|None = None,
     annot: Literal['all', 'none', 'above_mean'] = 'above_mean',
     title: str = 'Makers Statistics Summary Plot',
 ) -> plt.Figure:
@@ -220,7 +220,7 @@ def plot_all_stats(
     This function compiles several plots summarizing the evolution and variability of 
     market-making agents' behavior across simulation windows. It visualizes measures 
     such as the Calvano Collusion Index (CCI), per-maker action frequencies, joint 
-    action frequencies, and belief matrices.
+    action frequencies, and action values matrices.
 
     Depending on the provided statistical trackers, the figure may include up to 
     six main sections (stacked vertically):
@@ -234,8 +234,8 @@ def plot_all_stats(
        action frequency matrices for the first and last simulation windows.
     5. **Mean Joint Action Frequencies** — shown the joint action distributions
        for the first and last windows.
-    6. **Mean Final Belief Matrices** — optional section showing each maker's belief matrix 
-       mean and standard deviation across windows.
+    6. **Mean Final Action Values Matrices** — optional section showing each maker's action values
+       matrix mean and standard deviation across windows.
 
     Parameters
     ----------
@@ -258,8 +258,8 @@ def plot_all_stats(
     stats_joint_actions_freq : OnlineVectorStats or None, default=None
         Online tracker for joint action frequency matrices between makers.
         Generates two full-width plots (first and last window means) if provided.
-    stats_belief : OnlineVectorStats or None, default=None
-        Online tracker for belief matrices per maker across simulation rounds.
+    stats_action_values : OnlineVectorStats or None, default=None
+        Online tracker for action values matrices per maker across simulation rounds.
         Adds one row of heatmaps (mean ± std) if provided.
     annot : {'all', 'none', 'above_mean'}, default='above_mean'
         Controls how heatmap cells are annotated:
@@ -277,7 +277,7 @@ def plot_all_stats(
     Notes
     -----
     - Each section's presence depends on which `OnlineVectorStats` objects are provided.
-    - Action and belief heatmaps use maker-specific price grids.
+    - Action and ation values heatmaps use maker-specific price grids.
     - The function closes the figure before returning it (`plt.close()`) to avoid 
       automatic display in notebooks.
     """
@@ -287,7 +287,7 @@ def plot_all_stats(
         (stats_rdc is not None) +\
         2 * (stats_actions_freq is not None) +\
         2 * (stats_joint_actions_freq is not None) +\
-        (stats_belief is not None)
+        (stats_action_values is not None)
 
     row = 0
 
@@ -421,22 +421,22 @@ def plot_all_stats(
             )
         row += 2
 
-    # Row 8: mean final belief
-    if stats_belief is not None:
+    # Row 8: mean final action values
+    if stats_action_values is not None:
         for i, maker in enumerate(makers):
             matrix_mean = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_belief.get_mean()[i]
+            matrix_mean[*maker.price_to_index(maker.action_space).T] = stats_action_values.get_mean()[i]
             matrix_std = np.full(2 * (len(maker.prices),), np.nan)
-            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_belief.get_std(sample=False)[i]
+            matrix_std[*maker.price_to_index(maker.action_space).T] = stats_action_values.get_std(sample=False)[i]
 
             subfig = fig.add_subfigure(gs[row, i])
             ax = subfig.add_subplot(111)
-            plot_maker_belief(
+            plot_maker_action_values(
                 maker = maker,
                 matrix = matrix_mean,
                 matrix_stdev = matrix_std,
                 annot = 'all',
-                title = 'Mean Final Belief',
+                title = 'Mean Final Action Values',
                 ax = ax
             )
         row += 1
@@ -615,49 +615,49 @@ def plot_maker_actions_freq(
     return ax
 
 
-def plot_maker_belief(
+def plot_maker_action_values(
     maker: Maker,
-    belief_name: str|None = None,
+    action_values_name: str|None = None,
     matrix: np.ndarray|None = None,
     matrix_stdev: np.ndarray|None = None,
     ronud_range: slice = slice(None),
     annot: Literal['all', 'none', 'above_mean'] = 'all',
-    title: str = 'Belief',
+    title: str = 'Action Values',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot a heatmap of the maker's belief or a related variable across bid and ask prices.
+    Plot a heatmap of the maker's actio values or a related variable across bid and ask prices.
 
-    This function visualizes a 2D matrix representing the maker's internal belief 
-    (or another related variable specified by `belief_name`) over combinations 
+    This function visualizes a 2D matrix representing the maker's internal action values 
+    (or another related variable specified by `action_values_name`) over combinations 
     of bid and ask prices. The data can be provided directly via `matrix` or 
-    retrieved from the `Maker` instance. If `belief_name == 'extra'`, the data 
+    retrieved from the `Maker` instance. If `action_values_name == 'extra'`, the data 
     is obtained from `maker.history.get_extras(ronud_range)`.
 
     Parameters
     ----------
     maker : Maker
-        The maker instance containing relevant price data and belief-related variables.
-    belief_name : str or None, default=None
-        Name of the maker attribute representing the belief or related quantity 
-        (e.g., `'belief'`, `'q_values'`, `'v_values'`, `'policy'`). 
+        The maker instance containing relevant price data and action values-related variables.
+    action_values_name : str or None, default=None
+        Name of the maker attribute representing the action values or related quantity 
+        (e.g., `'q_values'`, `'v_values'`, `'policy'`). 
         If `'extra'`, the data is retrieved using `maker.history.get_extras(ronud_range)`.
         Ignored if `matrix` is provided.
     matrix : np.ndarray or None, default=None
         Optional precomputed 2D array to plot. If provided, it is used directly 
-        instead of retrieving belief data from `maker`.
+        instead of retrieving action values data from `maker`.
     matrix_stdev : np.ndarray or None, default=None
         Optional 2D array of standard deviations corresponding to `matrix` values.
         When provided, each heatmap cell annotation includes the mean ± standard deviation.
     ronud_range : slice, default=slice(None)
-        Range of rounds to consider when retrieving belief data from 
-        `maker.history.get_extras`. Only used if `belief_name == 'extra'`.
+        Range of rounds to consider when retrieving action values data from 
+        `maker.history.get_extras`. Only used if `action_values_name == 'extra'`.
     annot : {'all', 'none', 'above_mean'}, default='all'
         Controls how annotations are displayed:
         - `'all'` — annotate all cells.
         - `'none'` — no annotations.
         - `'above_mean'` — annotate only cells above the matrix mean.
-    title : str, default='Belief'
+    title : str, default='Action Values'
         Title of the plot.
     ax : matplotlib.axes.Axes or None, default=None
         Axis on which to draw the heatmap. If None, a new figure and axis are created.
@@ -677,7 +677,7 @@ def plot_maker_belief(
     
     if matrix is None:
         unique_actions = maker.price_to_index(maker.action_space)
-        freqs = getattr(maker, belief_name) if belief_name != 'extra' else maker.history.get_extras(ronud_range)
+        freqs = getattr(maker, action_values_name) if action_values_name != 'extra' else maker.history.get_extras(ronud_range)
 
         matrix = np.full(2*(len(maker.prices),), np.nan)
         matrix[unique_actions[:, 1], unique_actions[:, 0]] = freqs
@@ -724,13 +724,13 @@ def plot_maker_belief(
         ax = ax
     )
 
-    ax.set_title(f'{title} ({belief_name if belief_name is not None else 'custom'}) - {maker.name.capitalize()}')
+    ax.set_title(f'{title} ({action_values_name if action_values_name is not None else 'custom'}) - {maker.name.capitalize()}')
     ax.set_xlabel('Ask Price')
     ax.set_ylabel('Bid Price')
     return ax
 
 
-def plot_maker_belief_evolution_dc(
+def plot_maker_action_values_evolution_dc(
     maker: Maker,
     values: np.ndarray|None = None,
     adaptive_scale: bool = False,
@@ -738,18 +738,18 @@ def plot_maker_belief_evolution_dc(
     interval: int = 100,
 ) -> None:
     """
-    Display the evolution of a market maker's belief over time as a heatmap.
+    Display the evolution of a market maker's action values over time as a heatmap.
 
     The function creates an interactive widget (slider and autoplay) to visualize
-    the evolution of the market maker's belief for each frame. It is designed for 
+    the evolution of the market maker's action values for each frame. It is designed for 
     use in Jupyter notebooks and does not return any value.
 
     Parameters
     ----------
     maker : Maker
-        The market maker instance whose belief evolution is to be visualized.
+        The market maker instance whose action values evolution is to be visualized.
     values : np.ndarray or None, default=None
-        Optional array of shape (n_frames, N) containing belief values for each frame.
+        Optional array of shape (n_frames, N) containing action values for each frame.
         If None, the function uses `maker.history.get_extras()` to obtain the values.
     adaptive_scale : bool, default=False
         If True, the colorbar is updated for each frame based on the current data range.
@@ -773,7 +773,7 @@ def plot_maker_belief_evolution_dc(
             vmax = np.nanmax(data)
             im.set_clim(vmin, vmax)
 
-        ax.set_title(f'Belief Evolution {'(Log10 Scale) ' if log_scale else ''}- {maker.name.capitalize()}\nFrame {frame}')
+        ax.set_title(f'Action Values Evolution {'(Log10 Scale) ' if log_scale else ''}- {maker.name.capitalize()}\nFrame {frame}')
         fig.canvas.draw_idle()
         return
     
@@ -792,7 +792,7 @@ def plot_maker_belief_evolution_dc(
         im = ax.imshow(initial_image, cmap='viridis', interpolation='nearest', vmax=np.max(values), vmin=np.min(values))
     fig.colorbar(im)
 
-    ax.set_title(f'Belief Evolution {'(Log10 Scale) ' if log_scale else ''}- {maker.name.capitalize()}\nFrame 0')
+    ax.set_title(f'Action Values Evolution {'(Log10 Scale) ' if log_scale else ''}- {maker.name.capitalize()}\nFrame 0')
     ax.set_xlabel('Ask Price')
     ax.set_ylabel('Bid Price')
     ax.set_xticks(np.arange(len(maker.prices)))
@@ -820,18 +820,18 @@ def plot_maker_belief_evolution_dc(
     return
 
 
-def plot_maker_belief_evolution_sc(
+def plot_maker_action_values_evolution_sc(
     maker: Maker,
     matrix: np.ndarray|None = None,
     curr_idx: int|None = None,
     next_idx: int|None = None,
-    title: str = 'Belief Evolution',
+    title: str = 'Action Values Evolution',
     ax: plt.Axes|None = None
 ) -> plt.Axes:
     """
-    Plot the evolution of the maker's belief between two rounds.
+    Plot the evolution of the maker's action values between two rounds.
 
-    This function visualizes how a 2D belief-related matrix changes from one round
+    This function visualizes how a 2D action values-related matrix changes from one round
     (`curr_idx`) to the next (`next_idx`). The resulting heatmap displays the difference 
     `matrix[next] - matrix[curr]` for each bid-ask combination, while each cell is annotated 
     with the pair of values `(current, next)` for direct comparison. Data can be supplied 
@@ -849,12 +849,12 @@ def plot_maker_belief_evolution_sc(
         are obtained from `maker.history.get_extras(curr_idx)` and 
         `maker.history.get_extras(next_idx)`.
     curr_idx : int or None, default=None
-        Round index for the “current” snapshot of the belief or tracked quantity. 
+        Round index for the “current” snapshot of the action values or tracked quantity. 
         Ignored if `matrix` is provided.
     next_idx : int or None, default=None
-        Round index for the “next” snapshot of the belief or tracked quantity. 
+        Round index for the “next” snapshot of the action values or tracked quantity. 
         Ignored if `matrix` is provided.
-    title : str, default='Belief Evolution'
+    title : str, default='Action Values Evolution'
         Title for the resulting heatmap.
     ax : matplotlib.axes.Axes or None, default=None
         Axis on which to draw the heatmap. If None, a new figure and axis are created.
