@@ -107,7 +107,7 @@ def _multiple_runs(
     n_rounds: int = 10_000,
     n_windows: int = 100,
     run_id: int = -1
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, bool, bool]:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, bool]:
     """
     Execute multiple training episodes for a single experiment configuration
     and collect statistics over all episodes.
@@ -152,9 +152,8 @@ def _multiple_runs(
         - (OnlineVectorStats) RDC values;
         - (OnlineVectorStats) Action frequencies;
         - (OnlineVectorStats) Joint action frequencies;
-        - (OnlineVectorStats) Action values.
-        - (bool) True if the average strategy is a CCE.
-        - (bool) True if the average strategy is a NE.
+        - (OnlineVectorStats) Action values;
+        - (bool) True if one of the equilibirum checks is True.
 
     Notes
     -----
@@ -348,22 +347,24 @@ def _multiple_runs(
     )
     saver.save_figures({f'PLOT': fig})
 
-    # Save and print results
-    exp_rwd = stats_cci.get_mean()[:, -1] * (coll_reward/n_makers - nash_reward/n_makers) + nash_reward/n_makers
-    
+    # Check equilibria
     action_spaces = np.repeat(makers[0].action_space[None, :], repeats=n_makers, axis=0)
     prod_stats_action_freq = reduce(np.multiply.outer, stats_action_freq.get_mean()[:, 1, :])
 
     _, rewards = gtu.compute_joint_actions_and_rewards(action_spaces, true_value=0.5, tie_breaker=traders[0].tie_breaker)
+
+    jaf_is_indip = np.isclose(stats_joint_action_freq.get_mean()[1], prod_stats_action_freq, atol=1e-05).all()
     jaf_is_cce = gtu.is_cce(rewards, stats_joint_action_freq.get_mean()[1], strict=False, fast=True, verbose=False)
+    jaf_is_ce = gtu.is_ce(rewards, stats_joint_action_freq.get_mean()[1], strict=False, fast=True, verbose=False)
+
     af_is_cce = gtu.is_cce(rewards, prod_stats_action_freq, strict=False, fast=True, verbose=False)
+    af_is_ce = gtu.is_cce(rewards, prod_stats_action_freq, strict=False, fast=True, verbose=False)
     af_is_ne = gtu.is_ne(rewards,  stats_action_freq.get_mean()[:, 1, :], strict=False, fast=True, verbose=False)
 
-    jaf_is_indip = np.isclose(
-        stats_joint_action_freq.get_mean()[1],
-        prod_stats_action_freq,
-        atol = 1e-05
-    ).all()
+    is_eq = jaf_is_indip or jaf_is_cce or jaf_is_ce or af_is_cce or af_is_ce or af_is_ne
+
+    # Save and print results
+    exp_rwd = stats_cci.get_mean()[:, -1] * (coll_reward/n_makers - nash_reward/n_makers) + nash_reward/n_makers
 
     saver.print_and_save(
         f'Results:\n'
@@ -380,20 +381,22 @@ def _multiple_runs(
         f' - [RWD] Expected: {np.round(exp_rwd, 4)}\n'
         f' - [JAF] Is independent: {jaf_is_indip}\n'
         f' - [JAF] Is a CCE: {jaf_is_cce}\n'
+        f' - [JAF] Is a CE: {jaf_is_ce}\n'
         f' - [AF] Is a CCE: {af_is_cce}\n'
+        f' - [AF] Is a CE: {af_is_ce}\n'
         f' - [AF] Is a NE: {af_is_ne}\n'
         f'- Global:\n'
         f' - [RWD] Average: {np.round(stats_rwd.get_mean(), 4)}\n'
         f' - [RWD] Standard deviation: {np.round(stats_rwd.get_std(sample=False), 4)}',
         silent = True
     )
-    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, af_is_cce, af_is_ne
+    return stats_cci, stats_sorted_cci, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, is_eq
 
 
 def _worker(
     run_id: int,
     params: List[Dict[str, Any]],
-) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, bool, bool]:
+) -> Tuple[OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, OnlineVectorStats, bool]:
     """
     Worker function executed in a separate process for one experiment.
 
@@ -559,7 +562,7 @@ def run_experiment_suite(
         action_space = params[i]['agent']['maker'][0]['params']['action_space']
         action_values_attrs = [params[i]['agent']['maker'][j]['params'].get('action_values_attr', 'default') for j in range(n_makers)]
 
-        stats_cci, _, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, is_cce, is_ne = results
+        stats_cci, _, stats_rdc, stats_action_freq, stats_joint_action_freq, stats_action_values, is_eq = results
 
         min_cci, mean_cci, max_cci = stats_cci.get_min(), stats_cci.get_mean(), stats_cci.get_max()
         std_cci = stats_cci.get_std(sample=False)
@@ -589,8 +592,7 @@ def run_experiment_suite(
             f' - [JOINT ACTION] Relative frequency: {np.round(mean_joint_action_freq[most_common_joint_action_idx], 4)}\n'
             f' - [ACTION VALUES] Best action: {str(action_space[best_action_idx]).replace('\n', '')}\n'
             f' - [ACTION VALUES] {action_values_attr.capitalize()}: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}\n'
-            f' - [CCE] Is an equilibrium: {is_cce}\n'
-            f' - [NE] Is an equilibrium: {is_ne}'
+            f' - [EQ] One is true: {is_eq}'
         )
     
     # Plot results
