@@ -18,6 +18,7 @@ classifiers = [
   'Operating System :: OS Independent'
 ]
 dependencies = [
+    'cvxpy',
     'dill',
     'matplotlib',
     'numpy',
@@ -25,7 +26,6 @@ dependencies = [
     'ipympl',
     'ipywidgets',
     'seaborn',
-    'cvxpy',
     'pettingzoo',
     'gymnasium',
 ]

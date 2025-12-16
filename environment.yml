@@ -4,6 +4,7 @@ channels:
   - defaults
 dependencies:
   - python>=3.12
+  - cvxpy
   - dill
   - matplotlib
   - numpy
@@ -13,6 +14,5 @@ dependencies:
   - seaborn
   - pip
   - pip:
-    - cvxpy
     - pettingzoo
     - gymnasium
