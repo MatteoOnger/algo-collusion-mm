@@ -584,7 +584,7 @@ def run_experiment_suite(
             f' - [JOINT ACTION] Most common: {str(action_space[most_common_joint_action_idx, :]).replace('\n', '')}\n'
             f' - [JOINT ACTION] Relative frequency: {np.round(mean_joint_action_freq[most_common_joint_action_idx], 4)}\n'
             f' - [ACTION VALUES] Best action: {str(action_space[best_action_idx]).replace('\n', '')}\n'
-            f' - [ACTION VALUES] {action_values_attr.capitalize()}: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}\n',
+            f' - [ACTION VALUES] {action_values_attr.capitalize()}: {np.round(mean_action_values[np.arange(n_makers), best_action_idx], 4)}\n'
             f' - [CCE] Is an equilibrium: {is_cce}\n'
             f' - [NE] Is an equilibrium: {is_ne}'
         )
