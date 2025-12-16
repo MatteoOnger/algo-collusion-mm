@@ -354,7 +354,7 @@ def _multiple_runs(
 
     _, rewards = gtu.compute_joint_actions_and_rewards(action_spaces, true_value=0.5, tie_breaker=traders[0].tie_breaker)
     is_cce = gtu.is_cce(rewards, stats_joint_action_freq.get_mean()[1], strict=False, fast=True, verbose=False)
-    is_ne = gtu.is_ne(rewards,  stats_action_freq.get_mean()[:, 1, :], strict=False, fast=True, verbose=True)
+    is_ne = gtu.is_ne(rewards,  stats_action_freq.get_mean()[:, 1, :], strict=False, fast=True, verbose=False)
 
     is_indip = np.isclose(
         stats_joint_action_freq.get_mean()[1],
