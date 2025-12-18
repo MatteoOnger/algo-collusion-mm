@@ -184,7 +184,6 @@ def _multiple_runs(
 
     # To save experimental results
     saver = ExperimentStorage(saver_base_path)
-    saver.print_and_save(f'Started at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', silent=True)
 
     start_time = time.time()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

@@ -178,12 +178,13 @@ class MakerM3(Maker):
 
         arm_idx = self.action_to_index(self.last_action)
         scaled_reward = self.scale_rewards(rewards[arm_idx])
+        operation = operations if isinstance(operations, int) else operations[arm_idx]
 
         # operation: 0 = buy, 1 = sell
-        if operations[arm_idx] ==  0:
+        if operation == 0:
             self._subagents[0].update(scaled_reward)
             self._subagents[1].update(0.0)
-        elif operations[arm_idx] ==  1:
+        elif operation == 1:
             self._subagents[0].update(0.0)
             self._subagents[1].update(scaled_reward)
 

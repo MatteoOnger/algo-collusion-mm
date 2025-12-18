@@ -47,6 +47,7 @@ class CGMEnv(ptz.AECEnv):
         Defines what information informed makers receive:
         - `'full'`: counterfactual rewards under alternative actions,
           while the trader is allowed to react accordingly.
+          This option is computationally more expensive.
         - `'partial'`: counterfactual rewards assuming the trader's
           realized action remains fixed.
     render_mode : {'ascii', 'human'}
@@ -419,13 +420,12 @@ class CGMEnv(ptz.AECEnv):
             bid_prices[:, agent_idx] = action_space[:, 1]
 
             if self.info_level == 'full':
-                trader = deepcopy(self.trader)
-                trader.reset()
+                trader = self.trader.__class__(tie_breaker=self.trader.tie_breaker, name=self.trader.name)
                 rewards = self._compute_rewards(trader=trader, ask_prices=ask_prices, bid_prices=bid_prices)[:, agent_idx] 
                 trader_op = trader.history.get_actions()
             elif self.info_level == 'partial':
                 rewards = self._compute_rewards(ask_prices=ask_prices, bid_prices=bid_prices)[:, agent_idx]
-                trader_op = self.trader_op
+                trader_op = self.trader_op.value
             else:
                 raise ValueError(f'Unknown info level {self.info_level}')
 
@@ -755,7 +755,13 @@ class CGMEnv(ptz.AECEnv):
             if trader is None:
                 trader_op = self.trader_op
             else:
-                trader: Trader = deepcopy(self._get_agent(trader)) if isinstance(trader, str) else trader
+                if isinstance(trader, str):
+                    trader = self._get_agent(trader)
+                    trader: Trader = self.trader.__class__(
+                        tie_breaker = self.trader.tie_breaker,
+                        name = self.trader.name
+                    )
+                
                 if len(min_ask_price) == 1:
                     trader_op = trader.act({
                             'true_value': true_value,
