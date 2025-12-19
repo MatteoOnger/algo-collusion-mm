@@ -546,3 +546,127 @@ def is_ne(payoffs: np.ndarray, strategies: np.ndarray, strict: bool = False, fas
                     return False
                 flag = False
     return flag
+
+
+def non_strictly_dominated_actions(rewards: np.ndarray, player: int, epsilon: float = 1e-6, solver: str = cp.SCIPY) -> List[int]:
+    """
+    Identify the actions for a given player that are NOT strictly dominated 
+    by any mixed strategy in an N-player normal-form game.
+
+    Parameters
+    ----------
+    rewards : np.ndarray
+        N+1 dimensional array representing the payoff tensor of the game. 
+        Shape: (*[a_i for i in range(N)], N), where `a_i` is the number of actions 
+        for player `i`, and the last dimension contains each player's payoff.
+    player : int
+        Index of the player for whom non-strictly dominated actions are computed.
+        Must satisfy 0 <= player < N.
+    epsilon : float, default=1e-6
+        Small positive value for strict dominance margin.
+    solver : str, default=cp.SCIPY
+        The solver to use for the underlying CVXPY optimization problem.  
+        You can view the list of solvers available in your environment by running:
+        `cvxpy.installed_solvers()`.
+
+    Returns
+    -------
+    non_dominated : list of int
+        List of indices corresponding to the actions of `player` that are NOT 
+        strictly dominated by any mixed strategy over their other actions.
+    """
+    # Get action counts for all players
+    N = rewards.shape[-1]
+    action_counts = rewards.shape[:-1]
+    own_actions = action_counts[player]
+
+    # Compute payoff matrix for this player: rows = own actions, columns = joint actions of others
+    payoff = np.moveaxis(rewards, player, 0)  # player actions first
+    payoff = payoff.reshape(own_actions, -1, N)[:, :, player]  # shape: (own_actions, prod(others))
+
+    # List of non-dominated actions
+    non_dominated = []
+
+    for a in range(own_actions):
+        p = cp.Variable(own_actions)
+
+        constraints = [
+            p >= 0,
+            cp.sum(p) == 1,
+            p[a] == 0
+        ]
+
+        for b in range(payoff.shape[1]):
+            constraints.append(p @ payoff[:, b] >= payoff[a, b] + epsilon)
+
+        prob = cp.Problem(cp.Minimize(0), constraints)
+        prob.solve(solver=solver)
+
+        # If infeasible, action is NOT strictly dominated
+        if prob.status not in ["optimal", "optimal_inaccurate"]:
+            non_dominated.append(a)
+    return non_dominated
+
+
+def idsds(rewards: np.ndarray, epsilon: float = 1e-6, max_iter: int = 100, solver: str = cp.SCIPY) -> Tuple[List[List[int]], np.ndarray]:
+    """
+    Iterated Deletion of Strictly Dominated Strategies (IDSDS) for N-player games.
+
+    Parameters
+    ----------
+    rewards : np.ndarray
+        N+1 dimensional array representing the payoff tensor of the game. 
+        Shape: (*[a_i for i in range(N)], N), where `a_i` is the number of actions 
+        for player `i`, and the last dimension contains each player's payoff.
+    epsilon : float, default=1e-6
+        Small positive value for strict dominance margin.
+    max_iter : int, default=100
+        Maximum number of iterations to perform.
+    solver : str, default=cp.SCIPY
+        The solver to use for the underlying CVXPY optimization problem.  
+        You can view the list of solvers available in your environment by running:
+        `cvxpy.installed_solvers()`.
+
+    Returns
+    -------
+    remaining_actions : list of lists of int
+        List of length N, where each sublist contains the **original action indices**
+        that survive IDSDS for each player.
+    reduced_rewards : np.ndarray
+        Payoff tensor restricted to surviving actions.
+        Shape: (*[len(remaining_actions[i]) for i in range(N)], N)
+    """
+    # Get action counts for all players
+    N = rewards.shape[-1]
+    action_counts = rewards.shape[:-1]
+
+    # Original action indices for each player
+    remaining_actions = [list(range(a)) for a in action_counts]
+
+    current_rewards = rewards.copy()
+
+    for _ in range(max_iter):
+        changed = False
+
+        for player in range(N):
+            nd_actions = non_strictly_dominated_actions(
+                current_rewards,
+                player = player,
+                epsilon = epsilon,
+                solver = solver
+            )
+
+            if len(nd_actions) < len(remaining_actions[player]):
+                # Update original indices
+                remaining_actions[player] = [remaining_actions[player][i] for i in nd_actions]
+
+                # Slice current_rewards along the player's axis
+                slicer = [slice(None)] * N + [slice(None)]
+                slicer[player] = nd_actions
+                current_rewards = current_rewards[tuple(slicer)]
+
+                changed = True
+
+        if not changed:
+            break
+    return remaining_actions, current_rewards
