@@ -16,6 +16,8 @@ class Maker(Agent):
 
     Attributes
     ----------
+    action_values_attr : str
+        Name of the property that provides the action value representation.
     ticksize : float
         Minimum increment for prices in the action space.
     low : float

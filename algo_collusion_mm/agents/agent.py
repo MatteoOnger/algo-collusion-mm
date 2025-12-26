@@ -23,6 +23,9 @@ class Agent(ABC):
         Number of actions (arms) in the action space.
     history : Agent.History
         Internal tracker of actions taken, rewards and other infos.
+    type : AgentType
+        Role of the agent, used to distinguish
+        between different agent implementations or behaviors
     """
 
     type: AgentType = AgentType.ABSTRACT
