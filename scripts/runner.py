@@ -538,6 +538,7 @@ def run_experiment_suite(
         assert len(params[i]['agent']['maker']) == n_makers
         assert len(params[i]['agent']['trader']) == n_traders
 
+    # To save experimental results
     saver = ExperimentStorage(base_path)
 
     start_time = time.time()
@@ -602,6 +603,9 @@ def run_experiment_suite(
         lw_mean_cci = np.array([result[0].get_mean()[:, -1] for result in results_list]).T
         lw_std_cci = np.array([result[0].get_std(sample=False)[:, -1] for result in results_list]).T
         
+        title = fixed_params['agent']['maker']['meta'].get('class', 'Heterogeneous MMs')
+        title = title if isinstance(title, str) else title.__name__
+
         fig, axis = plt.subplots(figsize=(16, 6))
         plots.plot_makers_cci(
             xlabel = 'Experiment Index',
@@ -611,7 +615,7 @@ def run_experiment_suite(
             min = lw_min_cci,
             max = lw_max_cci,
             makers_name = [f'maker_{i}' for i in range(n_makers)],
-            title = f'Mean CCI wrt. Variable Parameters - Last Window',
+            title = f'{title} - Mean CCI wrt. Variable Parameters - Last Window',
             ax = axis
         )
         plt.tight_layout()
