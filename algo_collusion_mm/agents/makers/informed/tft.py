@@ -1,4 +1,4 @@
-""" Tit-for-Tat maker.
+""" Tit-for-tat maker.
 """
 import numpy as np
 
