@@ -69,135 +69,179 @@ def _get_joint_actions(shape: Tuple[int, ...]) -> np.ndarray:
 
 def compute_joint_actions_and_rewards(
     action_spaces: List[np.ndarray],
-    true_value: float,
+    true_value: float|np.ndarray,
+    true_value_probs: np.ndarray|None = None,
     tie_breaker: Literal['buy', 'sell', 'rand'] = 'rand'
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Compute the joint action space and resulting rewards for each maker in a trading scenario.
+    Compute the joint action space and the (expected) rewards for each maker in a trading scenario.
+
+    The function supports both:
+    - a deterministic true value;
+    - a discrete distribution over possible true values.
+
+    In the latter case, rewards are averaged according to the provided probability mass function.
 
     Parameters
     ----------
     action_spaces : list of np.ndarray
-        List of length `n_agents`, where each array is of shape (n_actions, 2), representing
-        the ask and bid prices set by each maker for every action.
-    true_value : float
-        The true value of the traded asset, used by the trader to decide whether to buy or sell.
-    tie_breaker : {'buy', 'sell', 'rand', 'alt'}
-        Rule used to resolve ties between equally favorable prices:
-        - 'buy': always prefer buying in case of tie.
-        - 'sell': always prefer selling in case of tie.
-        - 'rand': break ties randomly (50/50).
+        List of length `n_agents`. Each element is an array of shape (n_actions, 2),
+        where the two columns represent (ask_price, bid_price) for that agent.
+    true_value : float or np.ndarray
+        - If float: deterministic true value of the asset.
+        - If np.ndarray of shape (n_values,): possible true values.
+    true_value_probs : np.ndarray, default=None
+        Probability mass function over `true_value` when the latter is an array.
+        Must have shape (n_values,) and sum to 1 (normalization is enforced).
+        Must be None when `true_value` is a float.
+    tie_breaker : {'buy', 'sell', 'rand'}
+        Rule used when buying and selling are equally convenient:
+        - 'buy'  : always buy;
+        - 'sell' : always sell;
+        - 'rand' : buy or sell with equal probability.
 
     Returns
     -------
     all_combinations : np.ndarray
-        The full joint action space, reshaped to match the input action_spaces plus maker dimensions.
+        Joint action space.
         Shape: (*[len(e) for e in action_spaces], 2, n_agents)
     rewards : np.ndarray
-        The reward assigned to each maker under every joint action, shaped similarly to `all_combinations`
-        with the final dimension indicating the player.
+        Expected reward for each maker under every joint action.
         Shape: (*[len(e) for e in action_spaces], n_agents)
+
+    Notes
+    -----
+    - When `true_value` is deterministic, the returned rewards coincide with
+      realized rewards.
+    - When `true_value` is stochastic, rewards are expectations taken with
+      respect to `true_value_probs`.
     """
+    # Handle deterministic vs stochastic true value
+    if np.isscalar(true_value):
+        true_values = np.array([true_value], dtype=float)
+        probs = np.array([1.0])
+    else:
+        true_values = np.asarray(true_value, dtype=float)
+
+        if true_value_probs is None:
+            raise ValueError(
+                'true_value_probs must be provided when true_value is an array.'
+            )
+
+        probs = np.asarray(true_value_probs, dtype=float)
+        if len(probs) != len(true_values):
+            raise ValueError('true_value and true_value_probs must have the same length.')
+
+        probs = probs / probs.sum()
+
+    # Precompute joint action space (independent of true value)
     n_agents = len(action_spaces)
 
     all_combinations = np.array(list(product(*action_spaces)))
-    all_combinations = np.transpose(all_combinations, (0, 2, 1))  # -> (_, 2, n_agents)
+    all_combinations = np.transpose(all_combinations, (0, 2, 1))  # (_, 2, n_agents)
 
     min_ask_prices = np.min(all_combinations[:, 0], axis=-1)
     max_bid_prices = np.max(all_combinations[:, 1], axis=-1)
 
-    # What the trader will do: buy (0), sell (1) or choose random if equally convenient (2)
-    selected_operation = np.zeros(len(all_combinations), dtype=int)
-    selected_operation[
-        ~np.isclose(
-            (true_value - min_ask_prices),
-            (max_bid_prices - true_value),
-            atol = TOL
-        ) & (
-            (true_value - min_ask_prices) < (max_bid_prices - true_value)
-    )] = 1
+    expected_rewards = np.zeros((len(all_combinations), n_agents))
 
-    if tie_breaker == 'rand':
-        selected_operation[np.isclose((true_value - min_ask_prices), (max_bid_prices - true_value), atol=TOL)] = 2
-    elif tie_breaker == 'sell':
-        selected_operation[np.isclose((true_value - min_ask_prices), (max_bid_prices - true_value), atol=TOL)] = 1
+    # Loop over true values and accumulate expected rewards
+    for v, p in zip(true_values, probs):
 
-    # Op. 0 and 1: makers selected when trader has a clear buy or sell preference
-    selected_makers = np.where(
-        (
-            (selected_operation == 0)[:, None] & (all_combinations[:, 0, :] == min_ask_prices[:, None])
-        ) | (
-            (selected_operation == 1)[:, None] & (all_combinations[:, 1, :] == max_bid_prices[:, None])
+        # What the trader will do: buy (0), sell (1) or choose random if equally convenient (2)
+        selected_operation = np.zeros(len(all_combinations), dtype=int)
+        selected_operation[
+            ~np.isclose(v - min_ask_prices, max_bid_prices - v, atol=TOL)
+            & ((v - min_ask_prices) < (max_bid_prices - v))
+        ] = 1
+
+        if tie_breaker == 'rand':
+            selected_operation[np.isclose(v - min_ask_prices, max_bid_prices - v, atol=TOL)] = 2
+        elif tie_breaker == 'sell':
+            selected_operation[np.isclose(v - min_ask_prices, max_bid_prices - v, atol=TOL)] = 1
+
+        # Op. 0 and 1: makers selected when trader has a clear buy or sell preference
+        selected_makers = np.where(
+            (
+                (selected_operation == 0)[:, None]
+                & (all_combinations[:, 0, :] == min_ask_prices[:, None])
+            )
+            | (
+                (selected_operation == 1)[:, None]
+                & (all_combinations[:, 1, :] == max_bid_prices[:, None])
+            )
         )
-    )
-    # Op. 2: makers that only offered the best ask (no matching best bid)
-    selected_makers_ask_only = np.where(
-        (selected_operation == 2)[:, None] & 
-        (all_combinations[:, 0, :] == min_ask_prices[:, None]) &
-        ~(all_combinations[:, 1, :] == max_bid_prices[:, None])
-    )
-    # Op. 2: Makers that only offered the best bid (no matching best ask)
-    selected_makers_bid_only = np.where(
-        (selected_operation == 2)[:, None] &
-        ~((all_combinations[:, 0, :] == min_ask_prices[:, None])) &
-        (all_combinations[:, 1, :] == max_bid_prices[:, None])
-    )
-    # Op. 2: makers that offered both the best ask and the best bid
-    selected_makers_both = np.where(
-        (selected_operation == 2)[:, None] & 
-        ((all_combinations[:, 0, :] == min_ask_prices[:, None]) &
-         (all_combinations[:, 1, :] == max_bid_prices[:, None]))
-    )
+        # Op. 2: makers that only offered the best ask (no matching best bid)
+        selected_makers_ask_only = np.where(
+            (selected_operation == 2)[:, None]
+            & (all_combinations[:, 0, :] == min_ask_prices[:, None])
+            & ~(all_combinations[:, 1, :] == max_bid_prices[:, None])
+        )
+        # Op. 2: Makers that only offered the best bid (no matching best ask)
+        selected_makers_bid_only = np.where(
+            (selected_operation == 2)[:, None]
+            & ~(all_combinations[:, 0, :] == min_ask_prices[:, None])
+            & (all_combinations[:, 1, :] == max_bid_prices[:, None])
+        )
+        # Op. 2: makers that offered both the best ask and the best bid
+        selected_makers_both = np.where(
+            (selected_operation == 2)[:, None]
+            & (all_combinations[:, 0, :] == min_ask_prices[:, None])
+            & (all_combinations[:, 1, :] == max_bid_prices[:, None])
+        )
 
-    # Count selected makers
-    count_selected_ask_makers = np.sum(all_combinations[:, 0, :] == min_ask_prices[:, None], axis=1)
-    count_selected_bid_makers = np.sum(all_combinations[:, 1, :] == max_bid_prices[:, None], axis=1)
+        # Count selected makers
+        count_selected_ask = np.sum(all_combinations[:, 0, :] == min_ask_prices[:, None], axis=1)
+        count_selected_bid = np.sum(all_combinations[:, 1, :] == max_bid_prices[:, None], axis=1)
 
-    # Initialize array to store the average number of selected makers
-    avg_selected_makers = np.zeros((len(all_combinations), n_agents))
+        # Initialize array to store the average number of selected makers
+        avg_selected_makers = np.zeros((len(all_combinations), n_agents))
 
-    # Case 1: makers selected when trader had a clear preference (buy or sell)
-    avg_selected_makers[*selected_makers] = np.where(
-        selected_operation == 0,
-        count_selected_ask_makers,
-        count_selected_bid_makers
-    )[selected_makers[0]]
-    # Case 2: makers that had only a convenient ask price (no matching bid)
-    # these are selected only when the trader chooses to buy (50% chance), so scale their count by 0.5
-    avg_selected_makers[*selected_makers_ask_only] = count_selected_ask_makers[selected_makers_ask_only[0]] * 2
-    # Case 3: makers that had only a convenient bid price
-    # selected only when the trader chooses to sell (50% chance)
-    avg_selected_makers[*selected_makers_bid_only] = count_selected_bid_makers[selected_makers_bid_only[0]] * 2
-    # Case 4: Makers that had both a convenient ask and bid
-    # Regardless of the trader's choice, they will always be selected, so take the avg of ask and bid selection counts
-    avg_selected_makers[*selected_makers_both] = (
-        count_selected_ask_makers[selected_makers_both[0]] / 2 + 
-        count_selected_bid_makers[selected_makers_both[0]] / 2
-    )
+        # Case 1: makers selected when trader had a clear preference (buy or sell)
+        avg_selected_makers[*selected_makers] = np.where(
+            selected_operation == 0,
+            count_selected_ask,
+            count_selected_bid
+        )[selected_makers[0]]
+        # Case 2: makers that had only a convenient ask price (no matching bid)
+        # these are selected only when the trader chooses to buy (50% chance), so scale their count by 0.5
+        avg_selected_makers[*selected_makers_ask_only] = (count_selected_ask[selected_makers_ask_only[0]] * 2)
+        # Case 3: makers that had only a convenient bid price
+        # selected only when the trader chooses to sell (50% chance)
+        avg_selected_makers[*selected_makers_bid_only] = (count_selected_bid[selected_makers_bid_only[0]] * 2)
+        # Case 4: Makers that had both a convenient ask and bid
+        # Regardless of the trader's choice, they will always be selected, so take the avg of ask and bid selection counts
+        avg_selected_makers[*selected_makers_both] = (
+            count_selected_ask[selected_makers_both[0]] / 2
+            + count_selected_bid[selected_makers_both[0]] / 2
+        )
 
-    # Compute trader reward
-    reward = np.where(
-        selected_operation == 0,
-        true_value - min_ask_prices,
-        max_bid_prices - true_value
-    )[:, None]
+        # Compute trader reward
+        trader_reward = np.where(
+            selected_operation == 0,
+            v - min_ask_prices,
+            max_bid_prices - v
+        )[:, None]
 
-    # Compute makers rewards
-    rewards = np.round(
-        np.divide(
-            -reward,
+        # Compute makers rewards
+        rewards = np.divide(
+            -trader_reward,
             avg_selected_makers,
-            out = np.zeros_like(avg_selected_makers),
-            where = ~np.isclose(avg_selected_makers, 0, atol=TOL)
-        ), 
-        decimals = DECIMAL_PLACES
-    )
+            out=np.zeros_like(avg_selected_makers),
+            where=~np.isclose(avg_selected_makers, 0, atol=TOL)
+        )
 
-    # Reshape
-    newshape = [len(e) for e in action_spaces] 
+        # Accumulate expected rewards
+        expected_rewards += p * rewards
+
+    # Reshape outputs
+    newshape = [len(e) for e in action_spaces]
     all_combinations = np.reshape(all_combinations, newshape + [2, n_agents])
-    rewards = np.reshape(rewards, newshape + [n_agents,])
-    return all_combinations, rewards
+    expected_rewards = np.round(
+        np.reshape(expected_rewards, newshape + [n_agents]),
+        decimals=DECIMAL_PLACES
+    )
+    return all_combinations, expected_rewards
 
 
 def find_best_cce(
