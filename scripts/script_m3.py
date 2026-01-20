@@ -21,8 +21,6 @@ if __name__ == '__main__':
             'n_arms': len(action_space),
             'n_makers': 2,
             'n_traders': 1,
-            'nash_reward': 0.1,
-            'coll_reward': 0.5,
             'decimal_places': 3,
             'n_episodes': n_episodes,
             'n_rounds': n_rounds,

@@ -14,7 +14,7 @@ import algo_collusion_mm.utils.plots as plots
 
 from algo_collusion_mm.agents import Agent, Maker, Trader
 from algo_collusion_mm.envs import CGMEnv
-from algo_collusion_mm.utils.common import get_calvano_collusion_index, get_relative_deviation_competition
+from algo_collusion_mm.utils.common import get_calvano_collusion_index, get_relative_deviation_competition, split_array
 from algo_collusion_mm.utils.stats import OnlineVectorStats
 from algo_collusion_mm.utils.storage import ExperimentStorage
 
@@ -100,8 +100,6 @@ def _multiple_runs(
     n_makers: int,
     n_traders: int,
     agents_params: Dict[str, Any],
-    nash_reward: float,
-    coll_reward: float,
     decimal_places: int = 3,
     n_episodes: int = 100,
     n_rounds: int = 10_000,
@@ -128,10 +126,6 @@ def _multiple_runs(
         Number of trader agents.
     agents_params : dict of str to any
         Parameter dictionary specifying agent classes and their configuration.
-    nash_reward : float
-        Reward corresponding to the competitive (Nash) outcome.
-    coll_reward : float
-        Reward corresponding to perfect collusion.
     decimal_places : int, default=3
         Number of decimals to use when rounding logged metrics.
     n_episodes : int, default=100
@@ -234,11 +228,23 @@ def _multiple_runs(
                 for agent in env.possible_agents:
                     agent.update(rewards[agent.name], infos[agent.name])
 
+        # Compute nash and max collusion rewards
+        action_space = env.makers[0].action_space
+        true_value_history = np.array(env.true_value_history)
+
+        possible_rewards = np.minimum(
+            action_space[:, 0] - true_value_history[:, None],
+            true_value_history[:, None] - action_space[:, 1]
+        )
+
+        coll_rewards = np.max(possible_rewards, axis=1)
+        nash_rewards = np.nanmin(np.where(possible_rewards > 0, possible_rewards, np.nan), axis=1)
+
         # Compute calvano collusion idex per window and agent
         cci = get_calvano_collusion_index(
             np.array([maker.history.get_rewards() for maker in makers]),
-            nash_reward = nash_reward,
-            coll_reward = coll_reward,
+            nash_reward = nash_rewards,
+            coll_reward = coll_rewards,
             window_size = window_size,
             decimal_places = decimal_places
         )
@@ -246,7 +252,7 @@ def _multiple_runs(
         # Compute relative deviation from competition index per window and agent
         rdc = get_relative_deviation_competition(
             np.array([maker.history.get_rewards() for maker in makers]),
-            nash_reward = nash_reward,
+            nash_reward = nash_rewards,
             window_size = window_size,
             decimal_places = decimal_places
         )
@@ -363,7 +369,9 @@ def _multiple_runs(
     is_eq = jaf_is_indip or jaf_is_cce or jaf_is_ce or af_is_cce or af_is_ce or af_is_ne
 
     # Save and print results
-    exp_rwd = stats_cci.get_mean()[:, -1] * (coll_reward/n_makers - nash_reward/n_makers) + nash_reward/n_makers
+    c = split_array(coll_rewards, window_size).mean(axis=-1)[-1]
+    n = split_array(nash_rewards, window_size).mean(axis=-1)[-1]
+    exp_rwd = stats_cci.get_mean()[:, -1] * (c/n_makers - n/n_makers) + n/n_makers
 
     saver.print_and_save(
         f'Results:\n'
@@ -471,8 +479,6 @@ def run_experiment_suite(
     ...         'n_arms': len(action_space),
     ...         'n_makers': 2,
     ...         'n_traders': 1,
-    ...         'nash_reward': 0.1,
-    ...         'coll_reward': 0.5,
     ...         'decimal_places': 3,
     ...         'n_episodes': 10,
     ...         'n_rounds': 1000,

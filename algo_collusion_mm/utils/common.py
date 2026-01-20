@@ -103,15 +103,17 @@ def get_calvano_collusion_index(
     ----------
     rewards : np.ndarray
         Array of shape (n_agents, n_rounds) containing per-agent rewards.
-    nash_reward : float
-        Benchmark reward under Nash equilibrium (total across all agents).
-    coll_reward : float
-        Benchmark reward under perfect collusion (total across all agents).
+    nash_reward : float or np.ndarray
+        Total reward across all agents under Nash equilibrium. If an array is
+        provided, it is interpreted as a time series and may be windowed.
+    coll_reward : float or np.ndarray
+        Total reward across all agents under perfect collusion. If an array is
+        provided, it is interpreted as a time series and may be windowed.
     window_size : int, default=0
-        Size of the window in number of rounds for reward aggregation.
-        If 0, no windowing is applied.
+        Size of non-overlapping windows (in rounds) used to aggregate rewards.
+        If 0, rewards are not windowed and are averaged over all rounds.
     decimal_places : int, default=3
-        Number of decimal places to which rewards are rounded.
+        Number of decimal places used when rounding the benchmark rewards.
 
     Returns
     -------
@@ -129,11 +131,11 @@ def get_calvano_collusion_index(
     nash_reward = np.round(nash_reward / len(rewards), decimal_places)
     coll_reward = np.round(coll_reward / len(rewards), decimal_places)
 
-    rewards = split_array(rewards, window_size)
-    avg_rewards = rewards.mean(axis=-1)
+    diff = coll_reward - nash_reward
+    diff[np.isclose(coll_reward, nash_reward)] = 1
 
-    cci = (avg_rewards - nash_reward) / (coll_reward - nash_reward)
-    return cci
+    cci = (rewards - nash_reward) / diff
+    return split_array(cci, window_size).mean(axis=-1)
 
 
 def get_relative_deviation_competition(
@@ -161,15 +163,17 @@ def get_relative_deviation_competition(
     ----------
     rewards : np.ndarray
         Array of shape (n_agents, n_rounds) containing per-agent rewards.
-    nash_reward : float
-        Total reward under the Nash equilibrium (across all agents).
-        This value is internally converted to a per-agent reward.
+    nash_reward : float or np.ndarray
+        Total reward across all agents under Nash equilibrium. If an array is
+        provided, it is interpreted as a time series and may be aggregated
+        using the specified `window_size`. The reward is internally converted
+        to a per-agent benchmark.
     window_size : int, default=0
-        Window length (in rounds) used to aggregate rewards. If 0, no
-        windowing is applied and all rounds are used as a single window.
+        Size of non-overlapping windows (in rounds) used to aggregate rewards.
+        If 0, rewards are not windowed and are averaged over all rounds.
     decimal_places : int, default=3
-        Number of decimal places used when rounding the per-agent
-        competitive reward.
+        Number of decimal places used when rounding the per-agent Nash
+        equilibrium reward.
 
     Returns
     -------
@@ -178,9 +182,5 @@ def get_relative_deviation_competition(
         `n_windows` depends on the `window_size`.
     """
     nash_reward = np.round(nash_reward / len(rewards), decimal_places)
-
-    rewards = split_array(rewards, window_size)
-    avg_rewards = rewards.mean(axis=-1)
-
-    rdc = (avg_rewards - nash_reward) / nash_reward
-    return rdc
+    rdc = (rewards - nash_reward) / nash_reward
+    return split_array(rdc, window_size).mean(axis=-1)

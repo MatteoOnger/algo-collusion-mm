@@ -5,7 +5,6 @@ import gymnasium as gym
 import numpy as np
 import pettingzoo as ptz
 
-from copy import deepcopy
 from pettingzoo.utils import AgentSelector
 from typing import Callable, Dict, List, Literal, Tuple
 
@@ -64,6 +63,8 @@ class CGMEnv(ptz.AECEnv):
         Current round number.
     true_value : float
         True asset value for the current round.
+    true_value_history : list of float
+        History of true asset values across rounds.
     trader : Trader
         Trader selected for the current round.
     agents : list of Agent
@@ -201,6 +202,8 @@ class CGMEnv(ptz.AECEnv):
         """Current round number."""
         self.true_value: float
         """Current true asset value."""
+        self.true_value_history: list[float]
+        """History of true asset values."""
 
         self.trader: Trader
         """Currently selected trader."""
@@ -494,6 +497,7 @@ class CGMEnv(ptz.AECEnv):
 
         self.round = 0
         self.true_value = self.generate_vt()
+        self.true_value_history = list()
 
         self.trader = self._np_random.choice(self.traders)
         self.agents = self.makers + [self.trader]
@@ -579,8 +583,12 @@ class CGMEnv(ptz.AECEnv):
         else:
             self.trader_op = action['operation']
         
-        # Compute rewards
+        # If round ends
         if self._agent_selector.is_last():
+            # Store true value history
+            self.true_value_history.append(float(self.true_value))
+
+            # Compute rewards
             rewards = self._compute_rewards()
             for idx, agent in enumerate(self.possible_agents):
                 self.rewards[agent.name] = rewards[idx]
@@ -599,7 +607,7 @@ class CGMEnv(ptz.AECEnv):
             self.infos = {'round_finished': True} | {agent.name: self.inform(agent) for agent in self.possible_agents}            
             
             self.round += 1
-            self._true_value = self.generate_vt()
+            self.true_value = self.generate_vt()
 
             self.trader = self._np_random.choice(self.traders)
             self.agents = self.makers + [self.trader] if self.round < self.n_rounds else []
