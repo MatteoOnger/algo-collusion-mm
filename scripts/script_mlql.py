@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # Remove lambdas before multiprocessing: they can't be pickled.
     # Workers re-import the class, so they get the original lambdas anyway.
-    MakerMLQL.scheduler = {}
+    # MakerMLQL.scheduler = {}
 
     fixed_params = {
         'env': {

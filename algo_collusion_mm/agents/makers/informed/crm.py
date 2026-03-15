@@ -162,5 +162,7 @@ class MakerCRM(Maker):
 
     def reset(self) -> None:
         super().reset()
-        self.weights = np.zeros(self.n_arms, dtype=np.float64)
+        self._t = 0
+        self.regrets = np.zeros((self.n_arms, self.n_arms), dtype=np.float64)
+        self.probs = np.ones(self.n_arms, dtype=np.float64) / len(self.action_space)
         return

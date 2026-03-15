@@ -87,8 +87,8 @@ def split_array(arr: np.ndarray, window_size: int) -> np.ndarray:
 
 def get_calvano_collusion_index(
     rewards: np.ndarray,
-    nash_reward: float,
-    coll_reward: float,
+    nash_reward: np.ndarray|float,
+    coll_reward: np.ndarray|float,
     window_size: int = 0,
     decimal_places: int = 3
 ) -> np.ndarray:
@@ -128,6 +128,11 @@ def get_calvano_collusion_index(
     *American Economic Review, 110*(10), 3267-3297.
     https://doi.org/10.1257/aer.20190623
     """
+    if isinstance(nash_reward, float):
+        nash_reward = np.array([nash_reward])
+    if isinstance(coll_reward, float):
+        coll_reward = np.array([coll_reward])
+
     nash_reward = np.round(nash_reward / len(rewards), decimal_places)
     coll_reward = np.round(coll_reward / len(rewards), decimal_places)
 
@@ -140,7 +145,7 @@ def get_calvano_collusion_index(
 
 def get_relative_deviation_competition(
     rewards: np.ndarray,
-    nash_reward: float,
+    nash_reward: np.ndarray|float,
     window_size: int = 0,
     decimal_places: int = 3
 ) -> np.ndarray:
@@ -181,6 +186,10 @@ def get_relative_deviation_competition(
         Array of RDC values with shape (n_agents, n_windows), where
         `n_windows` depends on the `window_size`.
     """
+    if isinstance(nash_reward, float):
+        nash_reward = np.array([nash_reward])
+
     nash_reward = np.round(nash_reward / len(rewards), decimal_places)
-    rdc = (rewards - nash_reward) / nash_reward
+    
+    rdc = (rewards - nash_reward) / (nash_reward if nash_reward != 0 else 1)
     return split_array(rdc, window_size).mean(axis=-1)
