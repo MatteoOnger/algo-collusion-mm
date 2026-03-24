@@ -104,10 +104,6 @@ for next_agent in env.agent_iter():
 - Install in editable mode for development: `pip install -e .`.
 - Use the Conda environment in `environment.yml` for consistent dependency management.
 
-## Tips
-
-- To specify an explicit conda environment name: `conda env create -f environment.yml -n myenv`.
-
 ## License
 
 This project is released under the MIT License. See the `LICENSE` file for details.
