@@ -1,4 +1,4 @@
-name: rlvenv
+name: acmmenv
 channels:
   - conda-forge
   - defaults
